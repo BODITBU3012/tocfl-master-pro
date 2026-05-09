@@ -15,7 +15,7 @@ export default function App() {
   
   const selectedVocabCount = vocabulary.filter(v => v.isSelected).length;
 
-  const dueVocabCount = vocabulary.filter(v => (!v.nextReviewAt || v.nextReviewAt <= Date.now()) && v.masteryScore > 0).length;
+  const dueVocabCount = vocabulary.filter(v => !v.nextReviewAt || v.nextReviewAt <= Date.now()).length;
 
   const [expandedVocabId, setExpandedVocabId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -109,7 +109,7 @@ export default function App() {
     mastered: vocabulary.filter(v => v.masteryScore >= 80).length,
     learning: vocabulary.filter(v => v.masteryScore > 0 && v.masteryScore < 80).length,
     new: vocabulary.filter(v => v.masteryScore === 0).length,
-    due: vocabulary.filter(v => !v.nextReviewAt || v.nextReviewAt <= Date.now()).length
+    due: dueVocabCount
   };
 
   const [isActive, setIsActive] = useState(false);
@@ -233,7 +233,8 @@ export default function App() {
                 {[
                   { id: 'standard', title: 'Tiêu chuẩn', icon: Brain, desc: '5 câu hỏi ngẫu nhiên từ kho của bạn.', color: 'text-indigo-400' },
                   { id: 'flashcards', title: 'Flashcards', icon: BookOpen, desc: 'Học bằng cách lật thẻ ghi nhớ.', color: 'text-fuchsia-400' },
-                  { id: 'srs', title: `Đến hạn (${dueVocabCount})`, icon: Sparkles, desc: 'Ôn tập kiến thức đã đến lúc cần ôn lại.', color: 'text-emerald-400', disabled: dueVocabCount === 0 },
+                  { id: 'typing', title: 'Gõ chữ', icon: FileText, desc: 'Nhập từ tiếng Trung từ nghĩa tiếng Việt.', color: 'text-cyan-400' },
+                  { id: 'srs', title: `Ôn tập SRS (${dueVocabCount})`, icon: Sparkles, desc: 'Tự động chọn các từ đã đến hạn ôn tập.', color: 'text-emerald-400', disabled: dueVocabCount === 0 },
                   { id: 'timed', title: 'Siêu tốc', icon: Timer, desc: 'Trả lời nhanh trong 60 giây.', color: 'text-amber-400' },
                   { id: 'mistake-review', title: 'Ôn tập sai', icon: AlertCircle, desc: 'Tập trung vào các từ bạn đang yếu.', color: 'text-red-400' }
                 ].map((mode) => (
@@ -241,12 +242,7 @@ export default function App() {
                     key={mode.id}
                     disabled={(mode as any).disabled}
                     onClick={() => {
-                      if (mode.id === 'srs') {
-                         setShowDueOnly(true);
-                         setPracticeMode('standard');
-                      } else {
-                         setPracticeMode(mode.id as PracticeMode);
-                      }
+                      setPracticeMode(mode.id as PracticeMode);
                       setIsSelectingMode(false);
                       setIsQuizMode(true);
                     }}

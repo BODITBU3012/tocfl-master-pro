@@ -31,9 +31,9 @@ export interface AudioLesson {
   createdAt: number;
 }
 
-export type PracticeMode = 'standard' | 'timed' | 'mistake-review' | 'flashcards';
+export type PracticeMode = 'standard' | 'timed' | 'mistake-review' | 'flashcards' | 'typing' | 'srs';
 
-export type QuestionType = 'multiple-choice' | 'fill-in-the-blank' | 'sentence-reorder' | 'flashcard';
+export type QuestionType = 'multiple-choice' | 'fill-in-the-blank' | 'sentence-reorder' | 'flashcard' | 'typing';
 
 export interface QuizQuestion {
   id: string;

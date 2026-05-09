@@ -65,6 +65,19 @@ function generateLocalVocabQuestion(pool: VocabularyItem[], target: VocabularyIt
     };
   }
 
+  if (type === 'typing') {
+    return {
+      id: Math.random().toString(36).substr(2, 9),
+      vocabId: target.id,
+      type: 'typing',
+      prompt: `Gõ lại từ tiếng Trung có nghĩa là: "${target.meaning}"`,
+      correctAnswer: target.word,
+      pinyin: target.pinyin,
+      level: target.level,
+      explanation: `Chính xác! ${target.word} (${target.pinyin}) = ${target.meaning}`
+    };
+  }
+
   // Fallback to simple multi-choice if no sentence or for reorder
   const options = [target.word, ...distractors.map(d => d.word)].sort(() => 0.5 - Math.random());
   return {
@@ -92,6 +105,7 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
   const [timeLeft, setTimeLeft] = useState(60);
   const [isFinished, setIsFinished] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
+  const [typingInput, setTypingInput] = useState('');
 
   const currentQuestion = questions[currentStep];
 
@@ -120,13 +134,24 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
     if (vocabulary.length === 0 || questions.length > 0) return;
 
     function prepareQuiz() {
-      const questionTypes: QuestionType[] = mode === 'flashcards' ? ['flashcard'] : ['multiple-choice', 'fill-in-the-blank', 'multiple-choice'];
+      let questionTypes: QuestionType[];
+      if (mode === 'flashcards') {
+        questionTypes = ['flashcard'];
+      } else if (mode === 'typing') {
+        questionTypes = ['typing'];
+      } else {
+        questionTypes = ['multiple-choice', 'fill-in-the-blank', 'multiple-choice', 'typing'];
+      }
       
       try {
         const selected = vocabulary.filter(v => v.isSelected);
-        let pool = selected.length > 0 ? selected : (mode === 'mistake-review' 
-          ? vocabulary.filter(v => v.masteryScore < 60)
-          : vocabulary);
+        let pool = selected.length > 0 ? selected : (
+          mode === 'mistake-review' 
+            ? vocabulary.filter(v => v.masteryScore < 60)
+            : mode === 'srs'
+              ? vocabulary.filter(v => !v.nextReviewAt || v.nextReviewAt <= Date.now())
+              : vocabulary
+        );
         
         if (pool.length === 0 && mode === 'mistake-review') {
           pool = vocabulary; // Fallback to all if no mistakes
@@ -157,6 +182,7 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
     } else {
       setSelectedAnswer(null);
     }
+    setTypingInput('');
     setIsAnswered(false);
     setIsFlipped(false);
   }, [currentStep, questions]);
@@ -231,9 +257,68 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
 
   const handleFinish = () => {
     setIsFinished(true);
+  };
+
+  const handleCompleteFinal = () => {
     const askedIds = questions.map(q => q.vocabId as string);
     onFinish(correctIds, askedIds);
   };
+
+  if (isFinished) {
+    return (
+      <div className="fixed inset-0 bg-slate-950 z-50 overflow-y-auto flex items-center justify-center p-6">
+        <div className="max-w-xl w-full">
+           {score === questions.length && (
+            <Confetti width={windowSize.width} height={windowSize.height} colors={['#6366f1', '#4f46e5', '#a5b4fc']} recycle={false} />
+          )}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-slate-900 border border-slate-800 rounded-[40px] p-10 text-center shadow-2xl relative overflow-hidden"
+          >
+            <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-indigo-500 to-fuchsia-500" />
+            
+            <div className="mb-8 flex justify-center">
+              <div className="w-20 h-20 bg-indigo-500/10 rounded-3xl flex items-center justify-center text-indigo-400">
+                <Trophy size={40} />
+              </div>
+            </div>
+
+            <h2 className="text-3xl font-black text-white mb-2">Hoàn thành phiên học!</h2>
+            <p className="text-slate-500 text-sm mb-10">Lịch ôn tập của bạn đã được cập nhật dựa trên kết quả này.</p>
+
+            <div className="grid grid-cols-2 gap-4 mb-10">
+              <div className="p-6 bg-slate-950 rounded-3xl border border-slate-800">
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Chính xác</p>
+                <p className="text-3xl font-black text-white">{score} <span className="text-sm text-slate-600">/ {questions.length}</span></p>
+              </div>
+              <div className="p-6 bg-slate-950 rounded-3xl border border-slate-800">
+                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Tỷ lệ</p>
+                <p className="text-3xl font-black text-indigo-400">{Math.round((score / questions.length) * 100)}%</p>
+              </div>
+            </div>
+
+            <div className="bg-indigo-500/5 border border-indigo-500/10 rounded-3xl p-6 mb-10 text-left">
+              <div className="flex items-center gap-3 mb-3">
+                <Sparkles size={18} className="text-indigo-400" />
+                <h4 className="text-xs font-bold text-slate-300 uppercase tracking-widest">Spaced Repetition (SRS)</h4>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Hệ thống đã tính toán lại thời gian ghi nhớ của bạn. Các từ trả lời đúng sẽ xuất hiện lại sau một khoảng thời gian dài hơn để tối ưu hóa bộ nhớ dài hạn.
+              </p>
+            </div>
+
+            <button
+              onClick={handleCompleteFinal}
+              className="w-full py-5 bg-white text-slate-950 rounded-2xl font-black text-lg hover:scale-[1.02] active:scale-95 transition-all shadow-white/10 shadow-2xl"
+            >
+              QUAY LẠI TRANG CHỦ
+            </button>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || !currentQuestion) {
     return (
@@ -492,6 +577,55 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                         </button>
                         <span className="text-[10px] font-mono text-slate-600 border border-slate-800 px-1.5 rounded bg-slate-900">PHÍM 2</span>
                       </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Typing Question */}
+              {currentQuestion.type === 'typing' && (
+                <div className="flex flex-col gap-6">
+                  {!isAnswered ? (
+                    <form 
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (typingInput.trim()) {
+                          handleAnswer(typingInput.trim());
+                        }
+                      }}
+                      className="flex flex-col gap-4"
+                    >
+                      <input
+                        autoFocus
+                        type="text"
+                        value={typingInput}
+                        onChange={(e) => setTypingInput(e.target.value)}
+                        placeholder="Gõ từ tiếng Trung tại đây..."
+                        className="w-full p-6 bg-slate-950 border-2 border-slate-800 rounded-3xl text-2xl font-bold text-slate-100 focus:border-indigo-500 transition-all outline-hidden text-center"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!typingInput.trim()}
+                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        KIỂM TRA
+                      </button>
+                    </form>
+                  ) : (
+                    <div className={cn(
+                      "p-8 rounded-3xl border-2 flex flex-col items-center justify-center gap-4",
+                      selectedAnswer === currentQuestion.correctAnswer ? "border-emerald-500 bg-emerald-500/10" : "border-red-500 bg-red-500/10"
+                    )}>
+                      <div className="flex items-center gap-3">
+                         <span className="text-4xl font-bold">{selectedAnswer as string}</span>
+                         {selectedAnswer === currentQuestion.correctAnswer ? <Check size={32} className="text-emerald-400" /> : <X size={32} className="text-red-400" />}
+                      </div>
+                      {selectedAnswer !== currentQuestion.correctAnswer && (
+                        <div className="mt-4 text-center">
+                          <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Đáp án đúng là:</p>
+                          <p className="text-2xl font-bold text-emerald-400">{currentQuestion.correctAnswer as string}</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
