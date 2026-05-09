@@ -423,7 +423,7 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
               </div>
               
               <div className="flex items-center gap-3 mb-8 md:mb-12">
-                <h3 className="text-xl md:text-4xl font-bold text-slate-100 leading-tight tracking-tight flex-1">
+                <h3 className="text-xl md:text-5xl font-black text-slate-100 leading-tight tracking-tight flex-1 font-display-zh">
                   {currentQuestion.prompt}
                 </h3>
                   <button 
@@ -455,7 +455,7 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                           isAnswered && !isSelected && !isCorrect && "border-slate-800 opacity-30"
                         )}
                       >
-                        <span className="font-medium text-base md:text-lg">{option}</span>
+                        <span className="font-medium text-base md:text-lg font-zh">{option}</span>
                         {isAnswered && isCorrect && <Check size={18} className="md:w-5 md:h-5" />}
                         {isAnswered && isSelected && !isCorrect && <X size={18} className="md:w-5 md:h-5" />}
                       </button>
@@ -479,7 +479,7 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                           setSelectedAnswer(newSelection);
                           setShuffledReorder([...shuffledReorder, word]);
                         }}
-                        className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-600/20 font-bold"
+                        className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-600/20 font-bold font-zh"
                       >
                         {word}
                       </motion.button>
@@ -508,7 +508,7 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                              setTimeout(() => handleAnswer(newSelection), 400);
                           }
                         }}
-                        className="px-5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl hover:border-indigo-500/50 transition-colors font-bold text-slate-300"
+                        className="px-5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl hover:border-indigo-500/50 transition-colors font-bold text-slate-300 font-zh"
                       >
                         {word}
                       </motion.button>
@@ -526,7 +526,7 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                         <button
                           key={i}
                           onClick={() => handleAnswer(opt)}
-                          className="p-5 rounded-2xl border border-slate-800 bg-slate-950/50 hover:border-indigo-500 transition-all font-bold text-center"
+                          className="p-5 rounded-2xl border border-slate-800 bg-slate-950/50 hover:border-indigo-500 transition-all font-bold text-center font-zh"
                         >
                           {opt}
                         </button>

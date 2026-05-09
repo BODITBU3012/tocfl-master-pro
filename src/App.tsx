@@ -28,7 +28,8 @@ export default function App() {
   const [isSelectingMode, setIsSelectingMode] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<ProficiencyLevel | 'All'>('All');
-  const [selectedCategory, setSelectedCategory] = useState<'All' | 'standard' | 'custom'>('All');
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [selectedColor, setSelectedColor] = useState<string | 'All'>('All');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<'newest' | 'mastery' | 'alphabetical'>('newest');
   const [showDueOnly, setShowDueOnly] = useState(false);
@@ -41,17 +42,17 @@ export default function App() {
   const [newExample, setNewExample] = useState('');
   const [newTags, setNewTags] = useState('');
   const [newLevel, setNewLevel] = useState<ProficiencyLevel>('當代1');
-  const [newCategoryType, setNewCategoryType] = useState<'standard' | 'custom'>('custom');
+  const [newCategory, setNewCategory] = useState('Chưa phân loại');
   const [newColor, setNewColor] = useState<string | undefined>(undefined);
 
   const PREDEFINED_COLORS = [
-    { label: 'Default', value: undefined, class: 'bg-slate-800 border-slate-700' },
-    { label: 'Indigo', value: 'indigo', class: 'bg-indigo-500 border-indigo-400' },
-    { label: 'Fuchsia', value: 'fuchsia', class: 'bg-fuchsia-500 border-fuchsia-400' },
-    { label: 'Emerald', value: 'emerald', class: 'bg-emerald-500 border-emerald-400' },
-    { label: 'Amber', value: 'amber', class: 'bg-amber-500 border-amber-400' },
-    { label: 'Rose', value: 'rose', class: 'bg-rose-500 border-rose-400' },
-    { label: 'Cyan', value: 'cyan', class: 'bg-cyan-500 border-cyan-400' },
+    { label: 'Mặc định', value: undefined, class: 'bg-slate-800 border-slate-700', text: 'text-slate-400' },
+    { label: 'Khó nhớ', value: 'rose', class: 'bg-rose-500 border-rose-400', text: 'text-rose-400' },
+    { label: 'Cần ôn tập', value: 'amber', class: 'bg-amber-500 border-amber-400', text: 'text-amber-400' },
+    { label: 'Đang học', value: 'indigo', class: 'bg-indigo-500 border-indigo-400', text: 'text-indigo-400' },
+    { label: 'Đã thuộc', value: 'emerald', class: 'bg-emerald-500 border-emerald-400', text: 'text-emerald-400' },
+    { label: 'Thú vị', value: 'fuchsia', class: 'bg-fuchsia-500 border-fuchsia-400', text: 'text-fuchsia-400' },
+    { label: 'Công nghệ', value: 'cyan', class: 'bg-cyan-500 border-cyan-400', text: 'text-cyan-400' },
   ];
 
   const tagCounts = vocabulary.reduce((acc, item) => {
@@ -62,14 +63,19 @@ export default function App() {
   }, {} as Record<string, number>);
   const allTags = Object.keys(tagCounts).sort();
 
+  const allCategories = Array.from(new Set(vocabulary.map(v => v.category || 'Chưa phân loại'))).sort();
+
   const filteredVocab = vocabulary.filter(v => {
-    const matchesSearch = v.word.includes(searchTerm) || v.meaning.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = v.word.includes(searchTerm) || 
+      v.meaning.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      v.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesLevel = selectedLevel === 'All' || v.level === selectedLevel;
-    const matchesCategory = selectedCategory === 'All' || v.category === selectedCategory;
+    const matchesCategory = selectedCategory === 'All' || (v.category || 'Chưa phân loại') === selectedCategory;
+    const matchesColor = selectedColor === 'All' || (v.color === (selectedColor === 'none' ? undefined : selectedColor));
     const matchesTags = selectedTags.length === 0 || selectedTags.every(tag => v.tags?.includes(tag));
     const isDue = !v.nextReviewAt || v.nextReviewAt <= Date.now();
     const matchesDue = !showDueOnly || isDue;
-    return matchesSearch && matchesLevel && matchesCategory && matchesTags && matchesDue;
+    return matchesSearch && matchesLevel && matchesCategory && matchesColor && matchesTags && matchesDue;
   }).sort((a, b) => {
     if (sortBy === 'mastery') return b.masteryScore - a.masteryScore;
     if (sortBy === 'alphabetical') return a.word.localeCompare(b.word);
@@ -85,7 +91,7 @@ export default function App() {
       meaning: newMeaning,
       level: newLevel,
       exampleSentence: newExample,
-      category: newCategoryType,
+      category: newCategory,
       tags: newTags.split(',').map(tag => tag.trim()).filter(Boolean),
       color: newColor,
     });
@@ -508,46 +514,76 @@ export default function App() {
           </div>
         </div>
 
-        {allTags.length > 0 && (
-          <div className="flex items-center gap-2 mb-6 overflow-hidden">
+        {allCategories.length > 0 && (
+          <div className="flex items-center gap-2 mb-4 overflow-hidden">
             <div className="p-2 border border-slate-800 rounded-lg bg-slate-900 shrink-0">
-              <Filter size={14} className="text-slate-600" />
+              <LayoutGrid size={14} className="text-indigo-400" />
             </div>
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-              {allTags.map(tag => (
+              {['All', ...allCategories].map(cat => (
                 <button
-                  key={tag}
-                  onClick={() => toggleTag(tag)}
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
                   className={cn(
-                    "px-3 py-1 rounded-full text-[10px] font-bold transition-all flex items-center gap-2 border shrink-0",
-                    selectedTags.includes(tag)
+                    "px-4 py-1.5 rounded-full text-[10px] font-bold transition-all border shrink-0",
+                    selectedCategory === cat
                       ? "bg-indigo-600 border-indigo-500 text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]"
-                      : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300 hover:border-slate-700"
+                      : "bg-slate-900 border-slate-800 text-slate-500 hover:text-white"
                   )}
                 >
-                  {tag}
-                  <span className={cn(
-                    "text-[9px] px-1.5 py-0.5 rounded-full font-mono",
-                    selectedTags.includes(tag) ? "bg-indigo-500 text-white" : "bg-slate-800 text-slate-600"
-                  )}>
-                    {tagCounts[tag]}
-                  </span>
-                  {selectedTags.includes(tag) && <X size={10} />}
+                  {cat === 'All' ? 'Tất cả danh mục' : cat}
                 </button>
               ))}
-              {selectedTags.length > 0 && (
-                <button 
-                  onClick={() => setSelectedTags([])}
-                  className="px-3 py-1 text-slate-500 hover:text-indigo-400 transition-colors flex items-center gap-1.5 shrink-0"
-                  title="Xóa tất cả bộ lọc thẻ"
-                >
-                  <X size={14} />
-                  <span className="text-[10px] font-bold uppercase tracking-widest">Xóa lọc</span>
-                </button>
-              )}
             </div>
           </div>
         )}
+
+        <div className="flex items-center gap-2 mb-4 overflow-hidden">
+          <div className="p-2 border border-slate-800 rounded-lg bg-slate-900 shrink-0">
+            <Sparkles size={14} className="text-fuchsia-400" />
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+            <button
+              onClick={() => setSelectedColor('All')}
+              className={cn(
+                "px-4 py-1.5 rounded-full text-[10px] font-bold transition-all border shrink-0",
+                selectedColor === 'All'
+                  ? "bg-white text-slate-950 border-white"
+                  : "bg-slate-900 border-slate-800 text-slate-500 hover:text-white"
+              )}
+            >
+              Tất cả trạng thái
+            </button>
+            {PREDEFINED_COLORS.filter(c => c.value !== undefined).map(color => (
+              <button
+                key={color.value}
+                onClick={() => setSelectedColor(color.value as string)}
+                className={cn(
+                  "px-4 py-1.5 rounded-full text-[10px] font-bold transition-all border shrink-0 flex items-center gap-2",
+                  selectedColor === color.value
+                    ? `${color.class} text-white shadow-lg`
+                    : "bg-slate-900 border-slate-800 text-slate-500 hover:text-white"
+                )}
+              >
+                <div className={cn("w-1.5 h-1.5 rounded-full", selectedColor === color.value ? "bg-white" : color.class)} />
+                {color.label}
+              </button>
+            ))}
+            <button
+              onClick={() => setSelectedColor('none')}
+              className={cn(
+                "px-4 py-1.5 rounded-full text-[10px] font-bold transition-all border shrink-0",
+                selectedColor === 'none'
+                  ? "bg-slate-800 border-slate-700 text-white"
+                  : "bg-slate-900 border-slate-800 text-slate-500 hover:text-white"
+              )}
+            >
+              Chưa gán
+            </button>
+          </div>
+        </div>
+
+        {/* Tags filter bar removed to simplify UI as requested */}
 
         <AnimatePresence>
           {selectedVocabCount > 0 && (
@@ -608,16 +644,30 @@ export default function App() {
                     ? "border-indigo-500 bg-indigo-500/5 ring-1 ring-indigo-500/30" 
                     : item.color && viewMode === 'card'
                       ? {
-                          'border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.1)]': item.color === 'indigo',
-                          'border-fuchsia-500/50 shadow-[0_0_15px_rgba(217,70,239,0.1)]': item.color === 'fuchsia',
-                          'border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]': item.color === 'emerald',
-                          'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.1)]': item.color === 'amber',
-                          'border-rose-500/50 shadow-[0_0_15px_rgba(244,63,94,0.1)]': item.color === 'rose',
-                          'border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.1)]': item.color === 'cyan',
+                          'border-indigo-500/50 shadow-[0_0_20px_rgba(99,102,241,0.15)] ring-1 ring-indigo-500/10': item.color === 'indigo',
+                          'border-fuchsia-500/50 shadow-[0_0_20px_rgba(217,70,239,0.15)] ring-1 ring-fuchsia-500/10': item.color === 'fuchsia',
+                          'border-emerald-500/50 shadow-[0_0_20px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/10': item.color === 'emerald',
+                          'border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/10': item.color === 'amber',
+                          'border-rose-500/50 shadow-[0_0_20px_rgba(244,63,94,0.15)] ring-1 ring-rose-500/10': item.color === 'rose',
+                          'border-cyan-500/50 shadow-[0_0_20px_rgba(6,182,212,0.15)] ring-1 ring-cyan-500/10': item.color === 'cyan',
                         }[item.color]
                       : "border-slate-800/50 hover:border-indigo-500/30 hover:bg-slate-800/30"
                 )}
               >
+                {/* Visual Label Indicator */}
+                {item.color && viewMode === 'card' && (
+                  <div className={cn(
+                    "absolute -left-[1px] top-8 bottom-8 w-1.5 rounded-r-full transition-all",
+                    {
+                      'bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]': item.color === 'indigo',
+                      'bg-fuchsia-500 shadow-[0_0_10px_rgba(217,70,239,0.5)]': item.color === 'fuchsia',
+                      'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]': item.color === 'emerald',
+                      'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]': item.color === 'amber',
+                      'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]': item.color === 'rose',
+                      'bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)]': item.color === 'cyan',
+                    }[item.color]
+                  )} />
+                )}
                 {item.isSelected && (
                   <div className={cn(
                     "bg-indigo-500 rounded-full flex items-center justify-center text-white shadow-lg ring-4 ring-slate-950 z-20",
@@ -631,35 +681,42 @@ export default function App() {
                   <>
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex flex-col gap-1">
-                        <span className={cn(
-                          "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest self-start border",
-                          getLevelColor(item.level)
-                        )}>
-                          {item.level}
-                        </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={cn(
+              "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest self-start border",
+              getLevelColor(item.level)
+            )}>
+              {item.level}
+            </span>
+            {item.category && (
+              <span className="px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[9px] font-bold uppercase tracking-widest rounded whitespace-nowrap">
+                {item.category === 'Chưa phân loại' ? 'General' : item.category}
+              </span>
+            )}
+            {item.color && (
+              <span className={cn(
+                "px-2 py-0.5 border text-[9px] font-bold uppercase tracking-widest rounded whitespace-nowrap bg-slate-900/50",
+                PREDEFINED_COLORS.find(c => c.value === item.color)?.text || 'text-slate-500 border-slate-800',
+                PREDEFINED_COLORS.find(c => c.value === item.color)?.class.replace('bg-', 'border-').replace(' ', '') || 'border-slate-800'
+              )}>
+                {PREDEFINED_COLORS.find(c => c.value === item.color)?.label}
+              </span>
+            )}
+          </div>
                         {item.nextReviewAt && (
                           <span className="text-[8px] text-slate-500 font-bold uppercase tracking-tight">
                             Next: {new Date(item.nextReviewAt).toLocaleDateString()}
                           </span>
                         )}
                         {item.tags && item.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
+                          <div className="flex flex-wrap gap-x-2 gap-y-1 mt-2">
                             {item.tags.map(tag => (
-                              <button
+                              <span
                                 key={tag}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleTag(tag);
-                                }}
-                                className={cn(
-                                  "px-1.5 py-0.5 rounded-[4px] text-[8px] font-bold uppercase tracking-tighter transition-all",
-                                  selectedTags.includes(tag)
-                                    ? "bg-indigo-500 text-white"
-                                    : "bg-slate-800 text-slate-500 hover:text-slate-300"
-                                )}
+                                className="text-[9px] text-slate-500 font-medium"
                               >
-                                {tag}
-                              </button>
+                                #{tag}
+                              </span>
                             ))}
                           </div>
                         )}
@@ -677,7 +734,7 @@ export default function App() {
                     
                     <div className="mb-4">
                       <div className="flex items-center gap-2">
-                        <h3 className="text-xl md:text-2xl font-bold font-serif text-slate-100">{item.word}</h3>
+                        <h3 className="text-2xl md:text-3xl font-black font-display-zh text-slate-100 tracking-tight">{item.word}</h3>
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
@@ -721,8 +778,8 @@ export default function App() {
                           >
                             <div className="pt-2 pb-4 border-t border-slate-800/50 mt-2">
                               <div className="mb-4">
-                                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2">Change Color Theme</p>
-                                <div className="flex flex-wrap gap-1.5">
+                                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2 text-center">Đổi nhãn trạng thái (Mood)</p>
+                                <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
                                   {PREDEFINED_COLORS.map((color) => (
                                     <button
                                       key={color.label}
@@ -731,13 +788,22 @@ export default function App() {
                                         updateVocab(item.id, { color: color.value });
                                       }}
                                       className={cn(
-                                        "w-5 h-5 rounded-full border transition-all flex items-center justify-center",
-                                        color.class,
-                                        item.color === color.value ? "ring-1 ring-white ring-offset-1 ring-offset-slate-900 scale-110" : "opacity-60 hover:opacity-100"
+                                        "flex flex-col items-center gap-1.5 p-2 rounded-xl border transition-all group",
+                                        item.color === color.value ? "bg-slate-800 border-indigo-500/50" : "bg-slate-950 border-transparent hover:border-slate-800"
                                       )}
                                       title={color.label}
                                     >
-                                      {item.color === color.value && <Check size={8} className="text-white" />}
+                                      <div className={cn(
+                                        "w-6 h-6 rounded-full border flex items-center justify-center relative",
+                                        color.class,
+                                        item.color === color.value ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-slate-800" : "shadow-lg group-hover:scale-110"
+                                      )}>
+                                        {item.color === color.value && <Check size={10} className="text-white" />}
+                                      </div>
+                                      <span className={cn(
+                                        "text-[8px] font-bold uppercase tracking-tighter",
+                                        item.color === color.value ? "text-slate-100" : "text-slate-600"
+                                      )}>{color.label}</span>
                                     </button>
                                   ))}
                                 </div>
@@ -746,7 +812,7 @@ export default function App() {
                                 <div className="mt-3 py-2 px-3 bg-slate-950 rounded-lg border border-slate-800/50">
                                   <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Example</p>
                                   <div className="flex items-start gap-2">
-                                    <p className="text-xs text-slate-200 font-serif italic flex-1">{item.exampleSentence}</p>
+                                    <p className="text-xs text-slate-200 font-zh italic flex-1">{item.exampleSentence}</p>
                                     <button 
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -803,8 +869,9 @@ export default function App() {
                       )} />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h3 className="text-lg font-bold text-slate-100 truncate">{item.word}</h3>
+                          <h3 className="text-lg font-bold text-slate-100 truncate font-zh">{item.word}</h3>
                           <span className="text-[9px] text-slate-500 font-mono tracking-tight uppercase">{item.pinyin}</span>
+                          <span className="text-[8px] bg-slate-800/80 px-1.5 py-0.5 rounded text-slate-500 font-bold uppercase shrink-0">{item.category || 'Chưa phân loại'}</span>
                         </div>
                         <p className="text-xs text-slate-400 truncate">{item.meaning}</p>
                       </div>
@@ -885,15 +952,15 @@ export default function App() {
               onClick={() => setIsAdding(false)}
               className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
             />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-[32px] p-8 shadow-2xl overflow-hidden"
-            >
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-[32px] p-8 shadow-2xl overflow-y-auto max-h-[90vh]"
+              >
               <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h3 className="text-xl font-bold text-slate-100">新增詞彙</h3>
+                  <h3 className="text-xl font-bold text-slate-100 font-zh">新增詞彙</h3>
                   <p className="text-xs text-slate-500 uppercase tracking-widest mt-1">Add word to library</p>
                 </div>
                 <button onClick={() => setIsAdding(false)} className="p-2 hover:bg-slate-800 rounded-full text-slate-500 transition-colors">
@@ -911,7 +978,7 @@ export default function App() {
                       type="text"
                       value={newWord}
                       onChange={(e) => setNewWord(e.target.value)}
-                      className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm"
+                      className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm font-zh"
                       placeholder="學習"
                     />
                   </div>
@@ -942,29 +1009,23 @@ export default function App() {
                   <textarea 
                     value={newExample}
                     onChange={(e) => setNewExample(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm min-h-[80px]"
+                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm min-h-[80px] font-zh"
                     placeholder="VD: 我很喜歡學習漢語。"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Category</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(['standard', 'custom'] as const).map((cat) => (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => setNewCategoryType(cat)}
-                        className={cn(
-                          "py-2.5 rounded-lg text-xs font-bold transition-all border",
-                          newCategoryType === cat 
-                            ? "bg-slate-800 border-indigo-500 text-indigo-400" 
-                            : "bg-slate-950 border-slate-800 text-slate-500 hover:border-indigo-500/50"
-                        )}
-                      >
-                        {cat.toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Category / Lesson</label>
+                  <input 
+                    type="text"
+                    list="category-suggestions"
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm"
+                    placeholder="e.g. Travel, Life, Lesson 1"
+                  />
+                  <datalist id="category-suggestions">
+                    {allCategories.map(cat => <option key={cat} value={cat} />)}
+                  </datalist>
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Contemporary Chinese Level</label>
@@ -986,33 +1047,39 @@ export default function App() {
                     ))}
                   </div>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Tags (comma separated)</label>
+                {/* Secondary metadata moved to the bottom */}
+                <div className="pt-4 mt-4 border-t border-slate-800/50">
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Thêm nhãn (Tags)</label>
                   <input 
                     type="text"
-                    placeholder="e.g. food, travel, work"
+                    placeholder="e.g. food, travel, work (cách nhau bằng dấu phẩy)"
                     value={newTags}
                     onChange={(e) => setNewTags(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm"
+                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-xs text-slate-400"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Card Color Theme</label>
-                  <div className="flex flex-wrap gap-2">
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">Nhãn trạng thái (Mood Label)</label>
+                  <div className="grid grid-cols-4 gap-2">
                     {PREDEFINED_COLORS.map((color) => (
                       <button
                         key={color.label}
                         type="button"
                         onClick={() => setNewColor(color.value)}
                         className={cn(
-                          "w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center",
-                          color.class,
-                          newColor === color.value ? "ring-2 ring-white ring-offset-2 ring-offset-slate-900 scale-110" : "opacity-60 hover:opacity-100"
+                          "flex flex-col items-center gap-1.5 p-2 rounded-xl border transition-all",
+                          newColor === color.value ? "bg-slate-800 border-indigo-500/50 shadow-inner" : "bg-slate-950 border-slate-800/20 hover:border-slate-800"
                         )}
-                        title={color.label}
                       >
-                        {newColor === color.value && <Check size={14} className="text-white" />}
+                        <div className={cn(
+                          "w-5 h-5 rounded-full shadow-lg",
+                          color.class
+                        )} />
+                        <span className={cn(
+                          "text-[8px] font-bold uppercase tracking-tighter whitespace-nowrap",
+                          newColor === color.value ? "text-slate-100" : "text-slate-600"
+                        )}>{color.label}</span>
                       </button>
                     ))}
                   </div>
@@ -1071,7 +1138,7 @@ export default function App() {
 Hoặc dán ghi chú tiếng Trung của bạn tại đây..."
                     value={bulkText}
                     onChange={(e) => setBulkText(e.target.value)}
-                    className="w-full h-64 bg-slate-950 border border-slate-800 rounded-2xl p-4 text-slate-200 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none font-mono text-sm"
+                    className="w-full h-64 bg-slate-950 border border-slate-800 rounded-2xl p-4 text-slate-200 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none font-zh text-sm"
                   />
                   <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-500">
                     <BookOpen size={12} className="text-indigo-400" />
@@ -1093,7 +1160,7 @@ Hoặc dán ghi chú tiếng Trung của bạn tại đây..."
                             pinyin: parts[1] || '',
                             meaning: parts[2] || parts[1] || '',
                             level: '當代1' as ProficiencyLevel,
-                            category: 'custom' as const,
+                            category: 'custom' as string,
                             tags: [],
                             exampleSentence: ''
                           };

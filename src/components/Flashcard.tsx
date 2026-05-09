@@ -57,7 +57,7 @@ export function Flashcard({ word, pinyin, meaning, isFlipped: controlledFlipped,
             <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-fuchsia-500/10 rounded-full blur-2xl" />
             
             <div className="relative z-10 flex flex-col items-center">
-              <h2 className="text-6xl font-black text-white font-serif mb-3 tracking-tight">
+              <h2 className="text-6xl font-black text-white font-display-zh mb-3 tracking-tight">
                 {word}
               </h2>
               <p className="text-xl font-mono text-indigo-400 font-medium tracking-[0.2em] uppercase">

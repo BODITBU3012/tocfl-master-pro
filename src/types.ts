@@ -7,7 +7,7 @@ export interface VocabularyItem {
   meaning: string;
   level: ProficiencyLevel;
   exampleSentence?: string;
-  category: 'standard' | 'custom';
+  category: string;
   usageExplanation?: string;
   tags: string[];
   createdAt: number;
