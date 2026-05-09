@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Timer, Trophy, AlertCircle, Volume2, Plus, Search, BookOpen, Brain, Trash2, ChevronRight, X, Sparkles, Filter, LayoutGrid, List, TrendingUp, Calendar, Loader2, FileText, Upload, Check, Clock, Music, Headphones } from 'lucide-react';
+import { Timer, Trophy, AlertCircle, Volume2, Plus, Search, BookOpen, Brain, Trash2, ChevronRight, X, Sparkles, Filter, LayoutGrid, List, TrendingUp, Calendar, Loader2, FileText, Upload, Check, Clock, Music, Headphones, Flame } from 'lucide-react';
 import { useVocabulary } from './hooks/useVocabulary';
+import { useStreak } from './hooks/useStreak';
 import { ProficiencyLevel, VocabularyItem, PracticeMode } from './types';
 import QuizEngine from './components/Quiz/QuizEngine';
 import AudioManager from './components/Audio/AudioManager';
@@ -10,6 +11,7 @@ import { speakChinese } from './lib/tts';
 
 export default function App() {
   const { vocabulary, addVocab, addBulkVocab, removeVocab, toggleSelect, selectAll, clearSelection, updateVocab, recordResult } = useVocabulary();
+  const { streak, updateActivity } = useStreak();
   
   const selectedVocabCount = vocabulary.filter(v => v.isSelected).length;
 
@@ -391,6 +393,36 @@ export default function App() {
                     animate={{ width: `${timeGoalProgress}%` }}
                     className="h-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]"
                   />
+                </div>
+              </div>
+
+              {/* Streak Stat Card */}
+              <div className="bg-slate-900 border border-slate-800 rounded-[32px] p-6 flex flex-col justify-between relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform text-orange-500">
+                  <Flame size={32} />
+                </div>
+                <div className="flex items-center gap-1.5 mb-1 relative z-10">
+                  <h4 className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Chuỗi học tập</h4>
+                </div>
+                <div className="flex items-baseline gap-2 relative z-10">
+                  <span className={cn(
+                    "text-2xl font-black transition-colors",
+                    streak.currentStreak > 0 ? "text-orange-500" : "text-white"
+                  )}>
+                    {streak.currentStreak}
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Ngày liên tiếp</span>
+                </div>
+                <div className="mt-2 flex gap-1 relative z-10">
+                  {[...Array(7)].map((_, i) => (
+                    <div 
+                      key={i} 
+                      className={cn(
+                        "flex-1 h-1 rounded-full transition-all duration-500",
+                        streak.currentStreak > i ? "bg-orange-500" : "bg-slate-800"
+                      )} 
+                    />
+                  ))}
                 </div>
               </div>
             </div>
@@ -1118,6 +1150,7 @@ Hoặc dán ghi chú tiếng Trung của bạn tại đây..."
               recordResult(id, isCorrect);
             });
 
+            updateActivity();
             setIsQuizMode(false);
             setShowDueOnly(false);
             clearSelection();
