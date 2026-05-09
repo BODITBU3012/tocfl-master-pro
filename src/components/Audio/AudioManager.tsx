@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Upload, Music, Trash2, Play, Pause, X, FileAudio, Plus, Loader2 } from 'lucide-react';
+import { Upload, Music, Trash2, Play, Pause, X, FileAudio, Plus, Loader2, Gauge, FastForward, Rewind } from 'lucide-react';
 import { useAudioLessons } from '../../hooks/useAudioLessons';
 import { getAudioFile } from '../../services/audioStorage';
 import { cn } from '../../lib/utils';
@@ -16,15 +16,62 @@ export default function AudioManager({ onClose }: AudioManagerProps) {
   const [uploadDesc, setUploadDesc] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   const [currentPlayingId, setCurrentPlayingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = playbackRate;
+    }
+  }, [playbackRate, audioUrl]);
+
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration);
+    }
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = parseFloat(e.target.value);
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
+      setCurrentTime(time);
+    }
+  };
+
+  const skip = (seconds: number) => {
+    if (audioRef.current) {
+      audioRef.current.currentTime += seconds;
+    }
+  };
+
+  const formatTimeDisplay = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setErrorMessage(null);
     if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
-      if (!uploadTitle) setUploadTitle(e.target.files[0].name.replace(/\.[^/.]+$/, ""));
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      
+      // On some iOS versions, file.name might be empty or generic
+      let title = file.name ? file.name.replace(/\.[^/.]+$/, "") : "Bài giảng mới";
+      if (!uploadTitle) setUploadTitle(title);
     }
   };
 
@@ -33,6 +80,7 @@ export default function AudioManager({ onClose }: AudioManagerProps) {
     if (!selectedFile || !uploadTitle) return;
 
     setIsProcessing(true);
+    setErrorMessage(null);
     try {
       await addLesson(uploadTitle, selectedFile, uploadDesc);
       setUploadTitle('');
@@ -41,6 +89,7 @@ export default function AudioManager({ onClose }: AudioManagerProps) {
       setIsUploading(false);
     } catch (error) {
       console.error("Upload failed", error);
+      setErrorMessage("Không thể lưu file. Có thể bộ nhớ trình duyệt đã đầy hoặc định dạng file không được hỗ trợ.");
     } finally {
       setIsProcessing(false);
     }
@@ -147,7 +196,7 @@ export default function AudioManager({ onClose }: AudioManagerProps) {
                     <input 
                       required
                       type="file"
-                      accept="audio/*"
+                      accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg"
                       onChange={handleFileChange}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                     />
@@ -165,6 +214,12 @@ export default function AudioManager({ onClose }: AudioManagerProps) {
                   </div>
                 </div>
               </div>
+
+              {errorMessage && (
+                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs font-medium">
+                  {errorMessage}
+                </div>
+              )}
 
               <div className="flex gap-4">
                 <button 
@@ -272,16 +327,97 @@ export default function AudioManager({ onClose }: AudioManagerProps) {
               initial={{ y: 100 }}
               animate={{ y: 0 }}
               exit={{ y: 100 }}
-              className="bg-slate-950 border-t border-indigo-500/20 p-4 px-8"
+              className="bg-slate-950 border-t border-indigo-500/20 p-4 md:p-6"
             >
+              <div className="max-w-3xl mx-auto space-y-4">
+                {/* Custom Progress Bar */}
+                <div className="space-y-1">
+                  <input 
+                    type="range"
+                    min="0"
+                    max={duration || 0}
+                    step="0.1"
+                    value={currentTime}
+                    onChange={handleSeek}
+                    className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  />
+                  <div className="flex justify-between text-[10px] font-mono text-slate-500">
+                    <span>{formatTimeDisplay(currentTime)}</span>
+                    <span>{formatTimeDisplay(duration)}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                  {/* Playback Controls */}
+                  <div className="flex items-center gap-4">
+                    <button 
+                      onClick={() => skip(-10)}
+                      className="p-2 text-slate-400 hover:text-white transition-colors"
+                      title="Lùi 10 giây"
+                    >
+                      <Rewind size={20} />
+                    </button>
+                    <button 
+                      onClick={() => {
+                        if (audioRef.current?.paused) audioRef.current.play();
+                        else audioRef.current?.pause();
+                      }}
+                      className="p-3 bg-indigo-600 text-white rounded-full hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/20"
+                    >
+                      {audioRef.current?.paused ? <Play size={24} fill="currentColor" /> : <Pause size={24} fill="currentColor" />}
+                    </button>
+                    <button 
+                      onClick={() => skip(10)}
+                      className="p-2 text-slate-400 hover:text-white transition-colors"
+                      title="Tiến 10 giây"
+                    >
+                      <FastForward size={20} />
+                    </button>
+                  </div>
+
+                  {/* Speed Controls */}
+                  <div className="flex items-center gap-2 p-1 bg-slate-900 border border-slate-800 rounded-xl">
+                    <div className="px-3 text-slate-500">
+                      <Gauge size={16} />
+                    </div>
+                    {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => (
+                      <button
+                        key={rate}
+                        onClick={() => setPlaybackRate(rate)}
+                        className={cn(
+                          "px-2 py-1 rounded-lg text-[10px] font-black transition-all",
+                          playbackRate === rate 
+                            ? "bg-indigo-600 text-white" 
+                            : "text-slate-500 hover:text-slate-300"
+                        )}
+                      >
+                        {rate}x
+                      </button>
+                    ))}
+                  </div>
+
+                  <button 
+                    onClick={() => {
+                      URL.revokeObjectURL(audioUrl);
+                      setAudioUrl(null);
+                      setCurrentPlayingId(null);
+                    }}
+                    className="p-2 text-slate-500 hover:text-red-400"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+
               <audio 
                 ref={audioRef}
                 src={audioUrl}
                 autoPlay
-                controls
-                className="w-full h-10 accent-indigo-500 filter invert"
+                className="hidden"
+                onTimeUpdate={handleTimeUpdate}
+                onLoadedMetadata={handleLoadedMetadata}
                 onPlay={() => setCurrentPlayingId(currentPlayingId)}
-                onPause={() => setCurrentPlayingId(prev => prev)} // force re-render for UI sync
+                onPause={() => setCurrentPlayingId(prev => prev)}
                 onEnded={() => {
                   URL.revokeObjectURL(audioUrl);
                   setAudioUrl(null);
