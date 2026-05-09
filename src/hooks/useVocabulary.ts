@@ -124,5 +124,9 @@ export function useVocabulary() {
     }));
   };
 
-  return { vocabulary, isLoaded, addVocab, addBulkVocab, removeVocab, toggleSelect, selectAll, clearSelection, recordResult };
+  const updateVocab = (id: string, updates: Partial<VocabularyItem>) => {
+    setVocabulary(prev => prev.map(v => v.id === id ? { ...v, ...updates } : v));
+  };
+
+  return { vocabulary, isLoaded, addVocab, addBulkVocab, removeVocab, toggleSelect, selectAll, clearSelection, updateVocab, recordResult };
 }

@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Timer, Trophy, AlertCircle, Volume2, Plus, Search, BookOpen, Brain, Trash2, ChevronRight, X, Sparkles, Filter, LayoutGrid, List, TrendingUp, Calendar, Loader2, FileText, Upload, Check, Clock } from 'lucide-react';
+import { Timer, Trophy, AlertCircle, Volume2, Plus, Search, BookOpen, Brain, Trash2, ChevronRight, X, Sparkles, Filter, LayoutGrid, List, TrendingUp, Calendar, Loader2, FileText, Upload, Check, Clock, Music, Headphones } from 'lucide-react';
 import { useVocabulary } from './hooks/useVocabulary';
 import { ProficiencyLevel, VocabularyItem, PracticeMode } from './types';
 import QuizEngine from './components/Quiz/QuizEngine';
+import AudioManager from './components/Audio/AudioManager';
 import { cn, getLevelColor } from './lib/utils';
 import { speakChinese } from './lib/tts';
 
 export default function App() {
-  const { vocabulary, addVocab, addBulkVocab, removeVocab, toggleSelect, selectAll, clearSelection, recordResult } = useVocabulary();
+  const { vocabulary, addVocab, addBulkVocab, removeVocab, toggleSelect, selectAll, clearSelection, updateVocab, recordResult } = useVocabulary();
   
   const selectedVocabCount = vocabulary.filter(v => v.isSelected).length;
 
@@ -16,6 +17,7 @@ export default function App() {
 
   const [expandedVocabId, setExpandedVocabId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [isAudioBankOpen, setIsAudioBankOpen] = useState(false);
   const [isBulkImporting, setIsBulkImporting] = useState(false);
   const [bulkText, setBulkText] = useState('');
   const [isParsingBulk, setIsParsingBulk] = useState(false);
@@ -37,6 +39,17 @@ export default function App() {
   const [newTags, setNewTags] = useState('');
   const [newLevel, setNewLevel] = useState<ProficiencyLevel>('B1');
   const [newCategoryType, setNewCategoryType] = useState<'standard' | 'custom'>('custom');
+  const [newColor, setNewColor] = useState<string | undefined>(undefined);
+
+  const PREDEFINED_COLORS = [
+    { label: 'Default', value: undefined, class: 'bg-slate-800 border-slate-700' },
+    { label: 'Indigo', value: 'indigo', class: 'bg-indigo-500 border-indigo-400' },
+    { label: 'Fuchsia', value: 'fuchsia', class: 'bg-fuchsia-500 border-fuchsia-400' },
+    { label: 'Emerald', value: 'emerald', class: 'bg-emerald-500 border-emerald-400' },
+    { label: 'Amber', value: 'amber', class: 'bg-amber-500 border-amber-400' },
+    { label: 'Rose', value: 'rose', class: 'bg-rose-500 border-rose-400' },
+    { label: 'Cyan', value: 'cyan', class: 'bg-cyan-500 border-cyan-400' },
+  ];
 
   const tagCounts = vocabulary.reduce((acc, item) => {
     (item.tags || []).forEach(tag => {
@@ -71,12 +84,14 @@ export default function App() {
       exampleSentence: newExample,
       category: newCategoryType,
       tags: newTags.split(',').map(tag => tag.trim()).filter(Boolean),
+      color: newColor,
     });
     setNewWord('');
     setNewPinyin('');
     setNewMeaning('');
     setNewExample('');
     setNewTags('');
+    setNewColor(undefined);
     setIsAdding(false);
   };
 
@@ -85,111 +100,6 @@ export default function App() {
       prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
     );
   };
-
-  const [dailyGoal, setDailyGoal] = useState(() => {
-    const saved = localStorage.getItem('daily_goal');
-    return saved ? parseInt(saved, 10) : 10;
-  });
-  const [isConfiguringGoal, setIsConfiguringGoal] = useState(false);
-  const [goalType, setGoalType] = useState<'words' | 'time'>('words');
-  const [isActive, setIsActive] = useState(false);
-  const lastActivityRef = React.useRef(Date.now());
-
-  const [todayStudyTime, setTodayStudyTime] = useState(() => {
-    const saved = localStorage.getItem('study_time_data');
-    const data = saved ? JSON.parse(saved) : {};
-    const today = new Date().toISOString().split('T')[0];
-    return data[today] || 0;
-  });
-
-  const [studyTimeGoal, setStudyTimeGoal] = useState(() => {
-    const saved = localStorage.getItem('study_time_goal');
-    return saved ? parseInt(saved, 10) : 30; // default 30 minutes
-  });
-  const [showTimeHistory, setShowTimeHistory] = useState(false);
-
-  const getHistory = () => {
-    const saved = localStorage.getItem('study_time_data');
-    if (!saved) return [];
-    const data = JSON.parse(saved);
-    return Object.entries(data)
-      .map(([date, seconds]) => ({ date, minutes: Math.round((seconds as number) / 60) }))
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, 7);
-  };
-  const history = getHistory();
-
-  useEffect(() => {
-    const handleActivity = () => {
-      lastActivityRef.current = Date.now();
-      if (!isActive) setIsActive(true);
-    };
-
-    window.addEventListener('mousemove', handleActivity);
-    window.addEventListener('keydown', handleActivity);
-    window.addEventListener('click', handleActivity);
-    window.addEventListener('scroll', handleActivity);
-
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const isIdle = now - lastActivityRef.current > 60000; // 1 minute idle threshold for accuracy
-      const isVisible = document.visibilityState === 'visible';
-
-      if (!isIdle && isVisible) {
-        setIsActive(true);
-        setTodayStudyTime(prev => {
-          const newTime = prev + 1;
-          if (newTime % 5 === 0) { // Save every 5 seconds
-            const saved = localStorage.getItem('study_time_data');
-            const data = saved ? JSON.parse(saved) : {};
-            const today = new Date().toISOString().split('T')[0];
-            data[today] = newTime;
-            localStorage.setItem('study_time_data', JSON.stringify(data));
-          }
-          return newTime;
-        });
-      } else {
-        setIsActive(false);
-      }
-    }, 1000);
-
-    return () => {
-      window.removeEventListener('mousemove', handleActivity);
-      window.removeEventListener('keydown', handleActivity);
-      window.removeEventListener('click', handleActivity);
-      window.removeEventListener('scroll', handleActivity);
-      clearInterval(interval);
-    };
-  }, [isActive]);
-
-  useEffect(() => {
-    localStorage.setItem('study_time_goal', studyTimeGoal.toString());
-  }, [studyTimeGoal]);
-
-  const formatTime = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    if (hrs > 0) return `${hrs}h ${mins}m`;
-    return `${mins}m ${secs}s`;
-  };
-
-  const timeGoalProgress = Math.min(100, Math.round((todayStudyTime / (studyTimeGoal * 60)) * 100));
-
-  const reviewedToday = vocabulary.filter(item => {
-    if (!item.lastReviewedAt) return false;
-    const date = new Date(item.lastReviewedAt);
-    const today = new Date();
-    return date.getDate() === today.getDate() &&
-      date.getMonth() === today.getMonth() &&
-      date.getFullYear() === today.getFullYear();
-  }).length;
-
-  const goalProgress = Math.min(100, Math.round((reviewedToday / dailyGoal) * 100));
-
-  useEffect(() => {
-    localStorage.setItem('daily_goal', dailyGoal.toString());
-  }, [dailyGoal]);
 
   const masteryStats = {
     total: vocabulary.length,
@@ -202,32 +112,24 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500/30">
       {/* Navigation */}
-      <nav className="border-b border-slate-900 bg-slate-950/50 backdrop-blur-xl sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-linear-to-br from-indigo-600 to-fuchsia-600 rounded-xl flex items-center justify-center text-white shadow-xl shadow-indigo-500/20 font-black text-xl rotate-3">台</div>
+      <nav className="border-b border-white/5 bg-slate-950/50 backdrop-blur-3xl sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 md:h-20 flex items-center justify-between">
+          <div className="flex items-center gap-3 md:gap-4">
+            <div className="w-10 h-10 md:w-12 md:h-12 bg-linear-to-br from-indigo-500 to-fuchsia-500 rounded-2xl flex items-center justify-center text-white shadow-2xl shadow-indigo-500/10 font-black text-xl md:text-2xl transform hover:rotate-6 transition-transform">台</div>
             <div>
-              <h1 className="text-base font-black tracking-tight bg-linear-to-r from-white to-slate-400 bg-clip-text text-transparent">Học tiếng Đài</h1>
-              <p className="text-[8px] text-indigo-400 font-bold uppercase tracking-widest leading-none">Taiwanese Master</p>
+              <h1 className="text-base md:text-lg font-black tracking-tight text-white/90">Học tiếng Đài</h1>
+              <p className="text-[8px] md:text-[9px] text-indigo-400 font-bold uppercase tracking-[0.2em] leading-none">Modern Study Experience</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => {
-                setGoalType('words');
-                setIsConfiguringGoal(true);
-              }}
-              className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs rounded-full font-medium hover:bg-emerald-500/20 transition-colors"
-            >
-              Daily Goal: {goalProgress}% Complete
-            </button>
+          <div className="flex items-center gap-3">
             <button 
               onClick={() => setIsSelectingMode(true)}
               disabled={vocabulary.length < 3}
-              className="p-2 hover:bg-slate-900 rounded-lg transition-colors text-slate-400 hover:text-indigo-400"
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs rounded-full font-bold hover:bg-indigo-500 hover:text-white transition-all disabled:opacity-30"
             >
-              <Brain size={20} />
+              <Brain size={16} />
+              <span className="hidden sm:inline">Brain Mode</span>
             </button>
           </div>
         </div>
@@ -301,476 +203,219 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Goal Configuration Modal */}
-      <AnimatePresence>
-        {isConfiguringGoal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsConfiguringGoal(false)}
-              className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl"
-            >
-              <h3 className="text-xl font-bold mb-2">Thiết lập mục tiêu</h3>
-              <p className="text-sm text-slate-400 mb-6">
-                {goalType === 'words' ? 'Số lượng từ vựng bạn muốn ôn tập mỗi ngày.' : 'Thời gian bạn muốn dành để học mỗi ngày (phút).'}
-              </p>
-              
-              <div className="flex items-center justify-between mb-8">
-                <button 
-                  onClick={() => goalType === 'words' ? setDailyGoal(Math.max(5, dailyGoal - 5)) : setStudyTimeGoal(Math.max(5, studyTimeGoal - 5))}
-                  className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center text-slate-100 hover:bg-slate-700 transition-colors"
-                >
-                  -
-                </button>
-                <div className="text-center">
-                  <span className="text-4xl font-bold">{goalType === 'words' ? dailyGoal : studyTimeGoal}</span>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
-                    {goalType === 'words' ? 'Mục tiêu ngày' : 'Phút mỗi ngày'}
-                  </p>
-                </div>
-                <button 
-                  onClick={() => goalType === 'words' ? setDailyGoal(dailyGoal + 5) : setStudyTimeGoal(studyTimeGoal + 5)}
-                  className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center text-slate-100 hover:bg-slate-700 transition-colors"
-                >
-                  +
-                </button>
-              </div>
 
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setIsConfiguringGoal(false)}
-                  className="flex-1 py-4 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-500 transition-all"
-                >
-                  Xác nhận
-                </button>
-              </div>
-            </motion.div>
-          </div>
+      {/* Audio Manager Modal */}
+      <AnimatePresence>
+        {isAudioBankOpen && (
+          <AudioManager onClose={() => setIsAudioBankOpen(false)} />
         )}
       </AnimatePresence>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* Bento Dashboard Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-12">
+      <main className="max-w-7xl mx-auto px-4 md:px-6 py-8 md:py-12">
+        {/* Simple & Modern Dashboard */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 mb-16">
           
-          {/* Welcome Card */}
+          {/* Welcome Card & Primary Action */}
           <motion.div 
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            className="md:col-span-8 bg-slate-900 border border-slate-800 rounded-3xl p-8 flex flex-col justify-between overflow-hidden relative group"
+            className="md:col-span-12 lg:col-span-8 bg-slate-900 border border-slate-800 rounded-[32px] p-8 md:p-12 relative overflow-hidden group shadow-2xl"
           >
-            <div className="absolute -top-24 -left-24 w-64 h-64 bg-indigo-600/10 blur-[100px] rounded-full group-hover:bg-indigo-600/20 transition-colors" />
-            <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-fuchsia-600/10 blur-[100px] rounded-full group-hover:bg-fuchsia-600/20 transition-colors" />
-            <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-              <Sparkles size={120} className="text-indigo-500" />
-            </div>
-            <div className="relative z-10">
-              <h2 className="text-4xl md:text-7xl font-black tracking-tight mb-4 leading-tight">
-                <span className="bg-linear-to-r from-indigo-400 via-fuchsia-400 to-amber-400 bg-clip-text text-transparent filter drop-shadow-[0_0_20px_rgba(165,180,252,0.3)]">
-                  App học tiếng Đài Loan
-                </span>
-                <br />
-                <span className="text-xl md:text-2xl font-medium text-indigo-300/80 tracking-normal mt-4 block italic">
-                  Chinh phục TOCFL theo cách của chính bạn.
-                </span>
+            <div className="absolute -top-40 -left-40 w-96 h-96 bg-indigo-500/10 blur-[120px] rounded-full group-hover:bg-indigo-500/15 transition-colors" />
+            <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-fuchsia-500/10 blur-[120px] rounded-full group-hover:bg-fuchsia-500/15 transition-colors" />
+            
+            <div className="relative z-10 max-w-2xl">
+              <span className="inline-block px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-bold uppercase tracking-widest rounded-full mb-6">
+                Learning Dashboard
+              </span>
+              <h2 className="text-4xl md:text-7xl font-black text-white leading-[1.1] mb-8">
+                Học tiếng Đài<br />
+                <span className="text-slate-500">Dễ dàng hơn.</span>
               </h2>
-              <p className="text-slate-200/80 max-w-sm font-medium border-l-2 border-indigo-500/50 pl-4 py-1">Hãy chiến thắng bản thân của ngày hôm qua</p>
-            </div>
-            <div className="flex gap-4 mt-8">
-              <button 
-                onClick={() => setIsSelectingMode(true)}
-                disabled={vocabulary.length < 1}
-                className="px-8 py-4 bg-linear-to-r from-indigo-600 to-fuchsia-600 text-white rounded-2xl font-black hover:scale-105 active:scale-95 transition-all shadow-xl shadow-indigo-600/25 flex items-center gap-3 disabled:opacity-50 disabled:hover:scale-100"
-              >
-                <Brain size={20} />
-                Bắt đầu học ngay
-              </button>
-              <div className="flex gap-2">
+              
+              <div className="flex flex-wrap gap-4 mt-12">
                 <button 
-                  onClick={() => setIsAdding(true)}
-                  className="px-6 py-3 bg-slate-800 text-slate-100 rounded-xl font-bold hover:bg-slate-700 transition-all flex items-center gap-2 border border-slate-700"
+                  onClick={() => setIsSelectingMode(true)}
+                  disabled={vocabulary.length < 1}
+                  className="px-8 md:px-10 py-5 md:py-6 bg-white text-slate-950 rounded-2xl md:rounded-3xl font-black text-lg hover:scale-105 active:scale-95 transition-all shadow-white/10 shadow-2xl disabled:opacity-50 disabled:hover:scale-100 flex items-center gap-3"
                 >
-                  <Plus size={18} />
-                  Thêm từ mới
+                  <Brain size={24} />
+                  Học ngay
                 </button>
-                <button 
-                  onClick={() => setIsBulkImporting(true)}
-                  className="px-6 py-3 bg-slate-900 border border-slate-800 text-slate-400 rounded-xl font-bold hover:border-indigo-500/30 hover:text-indigo-400 transition-all flex items-center gap-2"
-                >
-                  <Upload size={18} />
-                  Nhập hàng loạt
-                </button>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setIsAdding(true)}
+                    className="px-6 py-5 bg-slate-800 text-white rounded-2xl md:rounded-3xl font-bold hover:bg-slate-700 transition-all flex items-center justify-center border border-slate-700 gap-2"
+                  >
+                    <Plus size={20} />
+                    <span className="hidden sm:inline">Thêm từ</span>
+                  </button>
+                  <button 
+                    onClick={() => setIsAudioBankOpen(true)}
+                    className="px-6 py-5 bg-linear-to-br from-indigo-500/10 to-fuchsia-500/10 border border-slate-800 text-fuchsia-400 rounded-2xl md:rounded-3xl font-bold hover:border-fuchsia-500/30 hover:bg-slate-900 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Headphones size={20} />
+                    <span className="hidden sm:inline">Bài nghe</span>
+                  </button>
+                </div>
               </div>
             </div>
           </motion.div>
 
-          {/* Quick Stats Module */}
-          <div className="md:col-span-4 grid grid-cols-1 gap-4">
-            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-3xl p-6 flex flex-col justify-between hover:border-indigo-500/30 transition-colors">
+          {/* Key Stats Cards */}
+          <div className="md:col-span-12 lg:col-span-4 flex flex-col gap-6">
+            {/* Minimal Stat Card */}
+            <div className="flex-1 bg-slate-900 border border-slate-800 rounded-[32px] p-8 flex flex-col justify-between hover:border-slate-700 transition-colors">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tổng vốn từ</span>
-                <div className="p-2 bg-indigo-500/10 rounded-lg">
-                  <TrendingUp size={16} className="text-indigo-400" />
+                <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tiến độ tổng quát</h3>
+                <TrendingUp size={16} className="text-slate-600" />
+              </div>
+              <div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-6xl font-black text-white">{masteryStats.total}</span>
+                  <span className="text-slate-500 text-sm font-bold tracking-widest uppercase">Vốn từ</span>
                 </div>
-              </div>
-              <div className="mt-4">
-                <span className="text-4xl font-black text-white">{masteryStats.total}</span>
-                <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-tighter font-bold">Từ vựng đã lưu</p>
-              </div>
-            </div>
-            <div className="bg-linear-to-br from-indigo-600 via-indigo-500 to-fuchsia-600 rounded-3xl p-6 flex flex-col justify-between text-white shadow-xl shadow-indigo-600/20 group overflow-hidden relative">
-              <div className="absolute top-0 right-0 p-4 opacity-20 -rotate-12 group-hover:rotate-0 transition-transform">
-                <Trophy size={64} />
-              </div>
-              <div className="flex items-center justify-between relative z-10">
-                <span className="text-[10px] font-bold text-indigo-100 uppercase tracking-widest">Độ thông thạo</span>
-                <div className="p-2 bg-white/10 rounded-lg">
-                  <Brain size={16} className="text-white" />
-                </div>
-              </div>
-              <div className="mt-4 relative z-10">
-                <span className="text-4xl font-black">{masteryStats.mastered}</span>
-                <div className="flex items-center gap-2 mt-1">
-                   <p className="text-[10px] text-indigo-100 font-bold uppercase tracking-tighter">Từ đã thuộc</p>
-                   <span className="px-1.5 py-0.5 bg-white/20 rounded-md text-[8px] font-black">{Math.round((masteryStats.mastered / (masteryStats.total || 1)) * 100)}%</span>
+                <div className="flex flex-wrap gap-2 mt-6">
+                  <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/15 rounded-full flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">{masteryStats.mastered} Mastered</span>
+                  </div>
+                  <div className="px-3 py-1 bg-amber-500/10 border border-amber-500/15 rounded-full flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
+                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">{masteryStats.due} Due Review</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Daily Goal Card */}
-          <div className="md:col-span-4 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-3xl p-6 flex flex-col justify-between relative overflow-hidden group">
-            <div className="absolute -right-4 -top-4 w-24 h-24 bg-emerald-500/10 blur-3xl rounded-full group-hover:bg-emerald-500/20 transition-colors" />
-            <div>
-              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Tiến độ mục tiêu</h3>
-              <div className="flex items-end justify-between mb-2">
-                <span className="text-3xl font-black text-white">{reviewedToday} <span className="text-sm text-slate-500">/ {dailyGoal}</span></span>
-                <span className="text-xs font-black text-emerald-400">{goalProgress}%</span>
-              </div>
-              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden shadow-inner">
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: `${goalProgress}%` }}
-                  className="h-full bg-linear-to-r from-emerald-600 to-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.3)]"
-                />
-              </div>
-            </div>
+            {/* SRS Status Summary */}
             <button 
               onClick={() => {
-                setGoalType('words');
-                setIsConfiguringGoal(true);
+                setShowDueOnly(true);
+                setIsQuizMode(true);
               }}
-              className="mt-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-emerald-400 transition-colors self-start"
+              disabled={masteryStats.due === 0}
+              className="group bg-linear-to-br from-indigo-600 to-fuchsia-600 rounded-[32px] p-8 text-white text-left relative overflow-hidden shadow-2xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:hover:scale-100"
             >
-              Cài đặt mục tiêu
+              <div className="absolute top-0 right-0 p-6 opacity-20 -rotate-12 group-hover:rotate-0 transition-transform">
+                <Sparkles size={64} />
+              </div>
+              <h4 className="text-[10px] font-bold text-white/70 uppercase tracking-widest mb-2 relative z-10">Smart Review</h4>
+              <div className="text-4xl font-black mb-1 relative z-10">{masteryStats.due} từ đến hạn</div>
+              <p className="text-xs text-white/80 relative z-10 font-medium">Ôn tập ngay bây giờ để tối ưu hóa trí nhớ.</p>
             </button>
-          </div>
-
-          {/* TOCFL Levels Card */}
-          <div className="md:col-span-4 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-3xl p-6 flex flex-col justify-between group overflow-hidden relative">
-            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform text-amber-500 group-hover:opacity-10">
-               <Trophy size={120} />
-            </div>
-            <div>
-              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Phân phối trình độ</h3>
-              <div className="space-y-3">
-                {['A1', 'A2', 'B1'].map(level => {
-                  const count = vocabulary.filter(v => v.level === level).length;
-                  const total = vocabulary.length || 1;
-                  const percent = Math.round((count / total) * 100);
-                  return (
-                    <div key={level} className="space-y-1">
-                      <div className="flex justify-between text-[10px] font-bold">
-                        <span className={cn(getLevelColor(level as ProficiencyLevel))}>{level}</span>
-                        <span className="text-slate-500 font-mono">{count} từ</span>
-                      </div>
-                      <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                        <div className={cn("h-full transition-all duration-1000", getLevelColor(level as ProficiencyLevel, 'solid').replace('text-', 'bg-'))} style={{ width: `${percent}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Activity Heatmap Mockup / Status */}
-          <div className="md:col-span-4 bg-slate-900 border border-slate-800 rounded-3xl p-6">
-            <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Activity</h3>
-            <div className="grid grid-cols-7 gap-1.5">
-              {Array.from({ length: 28 }).map((_, i) => (
-                <div 
-                  key={i} 
-                  className={cn(
-                    "aspect-square rounded-sm",
-                    i % 4 === 0 ? "bg-indigo-500" : 
-                    i % 3 === 0 ? "bg-indigo-900/60" : 
-                    i % 5 === 0 ? "bg-indigo-700" : "bg-slate-800/50"
-                  )}
-                />
-              ))}
-            </div>
-            <div className="mt-6 flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
-              <span>Less</span>
-              <div className="flex gap-1.5">
-                <div className="w-2 h-2 bg-slate-800/50 rounded-sm" />
-                <div className="w-2 h-2 bg-indigo-900/60 rounded-sm" />
-                <div className="w-2 h-2 bg-indigo-700 rounded-sm" />
-                <div className="w-2 h-2 bg-indigo-500 rounded-sm" />
-              </div>
-              <span>More</span>
-            </div>
-          </div>
-
-          {/* Next to Review Spotlight */}
-          <div className="md:col-span-4 bg-slate-900 border border-slate-800 rounded-3xl p-6 relative overflow-hidden group">
-            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform">
-              <Calendar size={120} />
-            </div>
-            <h3 className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-4">SRS Status</h3>
-            <div className="flex flex-col h-full">
-              <div className="flex-1">
-                <span className="text-4xl font-bold text-slate-100">{masteryStats.due}</span>
-                <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider font-bold">Words due for review</p>
-              </div>
-              <button 
-                onClick={() => {
-                  setShowDueOnly(true);
-                  setIsQuizMode(true);
-                }}
-                disabled={masteryStats.due === 0}
-                className="mt-4 px-4 py-2 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-bold rounded-lg uppercase tracking-widest hover:bg-amber-500 hover:text-slate-900 transition-all disabled:opacity-30 self-start"
-              >
-                Review Due Session
-              </button>
-            </div>
-          </div>
-
-          {/* Summary Tips */}
-          <div className="md:col-span-4 bg-slate-900 border border-slate-800 rounded-3xl p-6 relative overflow-hidden group">
-            <h3 className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Sparkles size={14} /> Learning Tips
-            </h3>
-            <div className="space-y-4">
-              {[
-                { title: "Review Regularly", desc: "Use the SRS mode to study words at the optimal time." },
-                { title: "Use Examples", desc: "Always read the example sentence to understand context." }
-              ].map((tip, i) => (
-                <div key={i} className="flex flex-col gap-1 p-3 bg-slate-950 border border-slate-800/50 rounded-xl">
-                  <span className="text-xs font-bold text-slate-200">{tip.title}</span>
-                  <p className="text-[10px] text-slate-500 line-clamp-2">{tip.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Daily Study Time Card */}
-          <div className="md:col-span-4 bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between relative overflow-hidden group">
-            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform text-indigo-500">
-               <Clock size={120} />
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Study Duration</h3>
-                <div className="flex items-center gap-1.5">
-                  <div className={cn("w-1.5 h-1.5 rounded-full", isActive ? "bg-emerald-500 animate-pulse" : "bg-slate-700")} />
-                  <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter">
-                    {isActive ? "Đang đếm" : "Tạm dừng"}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-end justify-between mb-2">
-                <span className="text-3xl font-bold text-slate-100">{formatTime(todayStudyTime)} <span className="text-sm text-slate-500">/ {studyTimeGoal}m</span></span>
-                <span className="text-xs font-bold text-indigo-400">{timeGoalProgress}%</span>
-              </div>
-              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: `${timeGoalProgress}%` }}
-                  className="h-full bg-indigo-500"
-                />
-              </div>
-            </div>
-            
-            <AnimatePresence>
-              {showTimeHistory && (
-                <motion.div 
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="mt-4 border-t border-slate-800 pt-4 space-y-2 overflow-hidden"
-                >
-                  <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mb-2">Lịch sử 7 ngày qua</p>
-                  {history.length > 0 ? history.map((item) => (
-                    <div key={item.date} className="flex justify-between items-center bg-slate-950/50 p-2 rounded-lg border border-slate-800/30">
-                      <span className="text-[10px] text-slate-400 font-mono">{item.date}</span>
-                      <span className="text-[10px] font-bold text-indigo-400">{item.minutes} phút</span>
-                    </div>
-                  )) : (
-                    <p className="text-[9px] text-slate-600 italic">Chưa có dữ liệu lịch sử.</p>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <div className="flex gap-4 mt-6">
-              <button 
-                onClick={() => {
-                  setGoalType('time');
-                  setIsConfiguringGoal(true);
-                }}
-                className="text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-indigo-400 transition-colors"
-              >
-                Set Duration Goal
-              </button>
-              <button 
-                onClick={() => setShowTimeHistory(!showTimeHistory)}
-                className="text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-indigo-400 transition-colors"
-              >
-                {showTimeHistory ? "Hide History" : "View History"}
-              </button>
-            </div>
           </div>
         </div>
 
-        {/* Toolbar & List Header */}
-        <div className="flex flex-col md:flex-row items-center gap-4 mb-6 pt-4 border-t border-slate-900">
-           <div className="relative flex-1 w-full group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors" size={18} />
+        {/* Modern Filter Toolbar */}
+        <div className="bg-slate-900/50 backdrop-blur-xl border border-white/5 rounded-[24px] p-2 md:p-3 mb-8 flex flex-col lg:flex-row items-center gap-4">
+          <div className="relative flex-1 w-full lg:w-auto">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input 
               type="text"
-              placeholder="Search library..."
+              placeholder="Tìm kiếm từ vựng..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-sm"
+              className="w-full pl-11 pr-4 py-3 bg-slate-950 border border-slate-800/50 rounded-[18px] focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all text-sm font-medium"
             />
           </div>
-          
-          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl">
-            <button
-              onClick={() => setShowDueOnly(!showDueOnly)}
-              className={cn(
-                "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2",
-                showDueOnly 
-                  ? "bg-amber-500 text-slate-950 shadow-[0_0_10px_rgba(245,158,11,0.3)]" 
-                  : "text-slate-500 hover:text-slate-300"
-              )}
-            >
-              <Calendar size={12} />
-              Due ({masteryStats.due})
-            </button>
-            <div className="w-[1px] h-4 bg-slate-800 mx-1" />
-            {(['All', 'standard', 'custom'] as const).map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={cn(
-                  "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap",
-                  selectedCategory === cat 
-                    ? "bg-slate-800 text-indigo-400 border border-indigo-500/30" 
-                    : "text-slate-500 hover:text-slate-300"
-                )}
-              >
-                {cat.charAt(0).toUpperCase() + cat.slice(1)}
-              </button>
-            ))}
-            <div className="w-[1px] h-4 bg-slate-800 mx-1" />
-            <div className="flex items-center gap-1 ml-1 px-1">
-              <TrendingUp size={12} className="text-slate-600" />
-              {(['newest', 'mastery', 'alphabetical'] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setSortBy(s)}
-                  className={cn(
-                    "px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all",
-                    sortBy === s ? "text-indigo-400 bg-indigo-500/10" : "text-slate-600 hover:text-slate-400"
-                  )}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl overflow-x-auto no-scrollbar max-w-full">
-            {['All', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map((level) => {
-              return (
+          <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto no-scrollbar pb-2 lg:pb-0">
+            <div className="flex items-center gap-1 p-1 bg-slate-950/50 border border-slate-800/50 rounded-[18px] shrink-0">
+              {['All', 'A1', 'A2', 'B1'].map((level) => (
                 <button
                   key={level}
                   onClick={() => setSelectedLevel(level as any)}
                   className={cn(
-                    "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 border",
+                    "px-4 py-2 rounded-[14px] text-xs font-bold transition-all",
                     selectedLevel === level 
-                      ? cn("text-white shadow-[0_0_15px_rgba(99,102,241,0.4)]", getLevelColor(level as ProficiencyLevel, 'solid'))
-                      : "text-slate-500 hover:text-slate-300 border-transparent"
+                      ? "bg-white text-slate-950 shadow-xl" 
+                      : "text-slate-500 hover:text-white"
                   )}
                 >
                   {level}
                 </button>
-              );
-            })}
+              ))}
+            </div>
+
+            <div className="w-[1px] h-6 bg-slate-800 mx-1 shrink-0" />
+
+            <button
+              onClick={() => setShowDueOnly(!showDueOnly)}
+              className={cn(
+                "px-5 py-2.5 rounded-[18px] text-xs font-bold transition-all flex items-center gap-2 shrink-0 border",
+                showDueOnly 
+                  ? "bg-amber-500 border-amber-400 text-slate-950 shadow-xl shadow-amber-500/20" 
+                  : "bg-slate-950/50 border-slate-800/50 text-slate-500 hover:text-white"
+              )}
+            >
+              <Clock size={16} />
+              Đến hạn ôn
+            </button>
+
+            <select 
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="px-5 py-2.5 bg-slate-950/50 border border-slate-800/50 text-slate-500 text-xs font-bold rounded-[18px] focus:outline-none focus:border-indigo-500 shrink-0 cursor-pointer hover:text-white transition-colors"
+            >
+              <option value="newest">Mới nhất</option>
+              <option value="mastery">Thành thạo</option>
+              <option value="alphabetical">A-Z</option>
+            </select>
           </div>
         </div>
 
         {allTags.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 mb-6">
-            <div className="flex items-center gap-2 mr-2">
+          <div className="flex items-center gap-2 mb-6 overflow-hidden">
+            <div className="p-2 border border-slate-800 rounded-lg bg-slate-900 shrink-0">
               <Filter size={14} className="text-slate-600" />
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Lọc theo thẻ:</span>
             </div>
-            {allTags.map(tag => (
-              <button
-                key={tag}
-                onClick={() => toggleTag(tag)}
-                className={cn(
-                  "px-3 py-1 rounded-full text-[10px] font-bold transition-all flex items-center gap-2 border",
-                  selectedTags.includes(tag)
-                    ? "bg-indigo-600 border-indigo-500 text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]"
-                    : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300 hover:border-slate-700"
-                )}
-              >
-                {tag}
-                <span className={cn(
-                  "text-[9px] px-1.5 py-0.5 rounded-full font-mono",
-                  selectedTags.includes(tag) ? "bg-indigo-500 text-white" : "bg-slate-800 text-slate-600"
-                )}>
-                  {tagCounts[tag]}
-                </span>
-                {selectedTags.includes(tag) && <X size={10} />}
-              </button>
-            ))}
-            {selectedTags.length > 0 && (
-              <button 
-                onClick={() => setSelectedTags([])}
-                className="ml-2 p-2 text-slate-500 hover:text-indigo-400 transition-colors flex items-center gap-1.5"
-                title="Xóa tất cả bộ lọc thẻ"
-              >
-                <X size={14} />
-                <span className="text-[10px] font-bold uppercase tracking-widest">Xóa lọc</span>
-              </button>
-            )}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+              {allTags.map(tag => (
+                <button
+                  key={tag}
+                  onClick={() => toggleTag(tag)}
+                  className={cn(
+                    "px-3 py-1 rounded-full text-[10px] font-bold transition-all flex items-center gap-2 border shrink-0",
+                    selectedTags.includes(tag)
+                      ? "bg-indigo-600 border-indigo-500 text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]"
+                      : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300 hover:border-slate-700"
+                  )}
+                >
+                  {tag}
+                  <span className={cn(
+                    "text-[9px] px-1.5 py-0.5 rounded-full font-mono",
+                    selectedTags.includes(tag) ? "bg-indigo-500 text-white" : "bg-slate-800 text-slate-600"
+                  )}>
+                    {tagCounts[tag]}
+                  </span>
+                  {selectedTags.includes(tag) && <X size={10} />}
+                </button>
+              ))}
+              {selectedTags.length > 0 && (
+                <button 
+                  onClick={() => setSelectedTags([])}
+                  className="px-3 py-1 text-slate-500 hover:text-indigo-400 transition-colors flex items-center gap-1.5 shrink-0"
+                  title="Xóa tất cả bộ lọc thẻ"
+                >
+                  <X size={14} />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Xóa lọc</span>
+                </button>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Selection Action Bar */}
         <AnimatePresence>
           {selectedVocabCount > 0 && (
             <motion.div
               initial={{ y: 100, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 100, opacity: 0 }}
-              className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] bg-slate-900/90 backdrop-blur-xl border border-indigo-500/30 rounded-2xl px-6 py-4 shadow-2xl flex items-center gap-6"
+              className="fixed bottom-6 md:bottom-10 left-4 right-4 md:left-1/2 md:right-auto md:-translate-x-1/2 z-[100] bg-slate-900/90 backdrop-blur-xl border border-indigo-500/30 rounded-2xl p-4 md:px-6 md:py-4 shadow-2xl flex flex-col md:flex-row items-center gap-4 md:gap-6"
             >
-              <div className="flex items-center gap-3 pr-6 border-r border-slate-800">
-                <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-600/20">
+              <div className="flex items-center gap-3 w-full md:w-auto md:pr-6 md:border-r border-slate-800">
+                <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-600/20 shrink-0">
                   {selectedVocabCount}
                 </div>
                 <div>
@@ -778,18 +423,18 @@ export default function App() {
                   <p className="text-[10px] text-slate-500 font-medium">Sẵn sàng để luyện tập</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full md:w-auto">
                 <button
                   onClick={() => setIsSelectingMode(true)}
-                  className="px-5 py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-500 transition-all flex items-center gap-2"
+                  className="flex-1 md:flex-none px-5 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-500 transition-all flex items-center justify-center gap-2"
                 >
-                  <Brain size={14} /> Bắt đầu ôn tập
+                  <Brain size={14} /> Ôn tập
                 </button>
                 <button
                   onClick={() => clearSelection()}
-                  className="px-5 py-2 bg-slate-800 text-slate-400 text-xs font-bold rounded-lg hover:bg-slate-700 hover:text-slate-200 transition-all"
+                  className="flex-1 md:flex-none px-5 py-2.5 bg-slate-800 text-slate-400 text-xs font-bold rounded-lg hover:bg-slate-700 hover:text-slate-200 transition-all text-center"
                 >
-                  Bỏ chọn tất cả
+                  Bỏ chọn
                 </button>
               </div>
             </motion.div>
@@ -808,10 +453,19 @@ export default function App() {
                 exit={{ opacity: 0, scale: 0.95 }}
                 onClick={() => toggleSelect(item.id)}
                 className={cn(
-                  "group bg-slate-900 border rounded-2xl p-5 transition-all cursor-pointer relative",
+                  "group bg-slate-900 border rounded-2xl p-4 md:p-5 transition-all cursor-pointer relative",
                   item.isSelected 
                     ? "border-indigo-500 bg-indigo-500/5 ring-1 ring-indigo-500/30" 
-                    : "border-slate-800/50 hover:border-indigo-500/30 hover:bg-slate-800/30"
+                    : item.color 
+                      ? {
+                          'border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.1)]': item.color === 'indigo',
+                          'border-fuchsia-500/50 shadow-[0_0_15px_rgba(217,70,239,0.1)]': item.color === 'fuchsia',
+                          'border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]': item.color === 'emerald',
+                          'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.1)]': item.color === 'amber',
+                          'border-rose-500/50 shadow-[0_0_15px_rgba(244,63,94,0.1)]': item.color === 'rose',
+                          'border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.1)]': item.color === 'cyan',
+                        }[item.color]
+                      : "border-slate-800/50 hover:border-indigo-500/30 hover:bg-slate-800/30"
                 )}
               >
                 {item.isSelected && (
@@ -864,7 +518,7 @@ export default function App() {
                 
                 <div className="mb-4">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-2xl font-bold font-serif text-slate-100">{item.word}</h3>
+                    <h3 className="text-xl md:text-2xl font-bold font-serif text-slate-100">{item.word}</h3>
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
@@ -875,11 +529,24 @@ export default function App() {
                     >
                       <Volume2 size={12} />
                     </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        selectAll(false);
+                        toggleSelect(item.id);
+                        setPracticeMode('flashcards');
+                        setIsQuizMode(true);
+                      }}
+                      className="p-1 rounded-full bg-slate-800 text-slate-400 hover:text-fuchsia-400 hover:bg-slate-700 transition-all"
+                      title="Học với flashcard"
+                    >
+                      <BookOpen size={12} />
+                    </button>
                   </div>
-                  <p className="text-[10px] text-slate-500 font-mono tracking-wider tabular-nums uppercase mt-0.5">{item.pinyin}</p>
+                  <p className="text-[10px] md:text-xs text-slate-500 font-mono tracking-wider tabular-nums uppercase mt-0.5">{item.pinyin}</p>
                 </div>
 
-                <p className="text-xs text-slate-400 font-medium mb-4 line-clamp-2 min-h-[32px]">
+                <p className="text-xs md:text-sm text-slate-400 font-medium mb-4 line-clamp-2 min-h-[32px]">
                   {item.meaning}
                 </p>
 
@@ -894,6 +561,28 @@ export default function App() {
                         className="overflow-hidden"
                       >
                         <div className="pt-2 pb-4 border-t border-slate-800/50 mt-2">
+                          <div className="mb-4">
+                            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2">Change Color Theme</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {PREDEFINED_COLORS.map((color) => (
+                                <button
+                                  key={color.label}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateVocab(item.id, { color: color.value });
+                                  }}
+                                  className={cn(
+                                    "w-5 h-5 rounded-full border transition-all flex items-center justify-center",
+                                    color.class,
+                                    item.color === color.value ? "ring-1 ring-white ring-offset-1 ring-offset-slate-900 scale-110" : "opacity-60 hover:opacity-100"
+                                  )}
+                                  title={color.label}
+                                >
+                                  {item.color === color.value && <Check size={8} className="text-white" />}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                           {item.exampleSentence && (
                             <div className="mt-3 py-2 px-3 bg-slate-950 rounded-lg border border-slate-800/50">
                               <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Example</p>
@@ -1077,6 +766,27 @@ export default function App() {
                     onChange={(e) => setNewTags(e.target.value)}
                     className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Card Color Theme</label>
+                  <div className="flex flex-wrap gap-2">
+                    {PREDEFINED_COLORS.map((color) => (
+                      <button
+                        key={color.label}
+                        type="button"
+                        onClick={() => setNewColor(color.value)}
+                        className={cn(
+                          "w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center",
+                          color.class,
+                          newColor === color.value ? "ring-2 ring-white ring-offset-2 ring-offset-slate-900 scale-110" : "opacity-60 hover:opacity-100"
+                        )}
+                        title={color.label}
+                      >
+                        {newColor === color.value && <Check size={14} className="text-white" />}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <button 

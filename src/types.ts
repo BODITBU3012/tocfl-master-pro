@@ -18,6 +18,17 @@ export interface VocabularyItem {
   repetitionCount: number;
   masteryScore: number; // 0 to 100
   isSelected?: boolean;
+  color?: string;
+}
+
+export interface AudioLesson {
+  id: string;
+  title: string;
+  description?: string;
+  fileName: string;
+  fileSize: number;
+  duration?: number;
+  createdAt: number;
 }
 
 export type PracticeMode = 'standard' | 'timed' | 'mistake-review' | 'flashcards';

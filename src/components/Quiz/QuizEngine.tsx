@@ -86,6 +86,8 @@ export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: Quiz
   const [isFinished, setIsFinished] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
 
+  const currentQuestion = questions[currentStep];
+
   useEffect(() => {
     const handleResize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     window.addEventListener('resize', handleResize);
@@ -148,6 +150,25 @@ export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: Quiz
     setIsAnswered(false);
     setIsFlipped(false);
   }, [currentStep, questions]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (currentQuestion?.type === 'flashcard') {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          setIsFlipped(prev => !prev);
+        } else if (isFlipped && isAnswered === false) {
+          if (e.key === '1') {
+            handleAnswer('wrong');
+          } else if (e.key === '2') {
+            handleAnswer('correct');
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentQuestion, isFlipped, isAnswered]);
 
   const handleAnswer = (answer: string | string[]) => {
     if (isAnswered) return;
@@ -218,22 +239,20 @@ export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: Quiz
     );
   }
 
-  const currentQuestion = questions[currentStep];
-
   return (
     <div className="fixed inset-0 bg-slate-950 z-50 overflow-y-auto selection:bg-indigo-500/30">
       {score === questions.length && isAnswered && currentStep === questions.length - 1 && (
         <Confetti width={windowSize.width} height={windowSize.height} colors={['#6366f1', '#4f46e5', '#a5b4fc']} />
       )}
       
-      <div className="max-w-3xl mx-auto px-6 py-12 min-h-screen flex flex-col">
+      <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 md:py-12 min-h-screen flex flex-col">
         {/* Top bar */}
-        <div className="mb-12 flex items-center justify-between">
+        <div className="mb-6 md:mb-12 flex items-center justify-between">
           <button onClick={onClose} className="p-2 hover:bg-slate-900 rounded-full text-slate-500 hover:text-slate-100 transition-colors">
-            <X size={24} />
+            <X size={20} className="md:w-6 md:h-6" />
           </button>
-          <div className="flex-1 mx-8">
-            <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden">
+          <div className="flex-1 mx-4 md:mx-8">
+            <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden">
               <motion.div 
                 initial={{ width: 0 }}
                 animate={{ width: mode === 'timed' ? `${(timeLeft / 60) * 100}%` : `${((currentStep + 1) / questions.length) * 100}%` }}
@@ -273,13 +292,13 @@ export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: Quiz
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
-              className="bg-slate-900 border border-slate-800 rounded-[40px] p-10 md:p-16 relative overflow-hidden"
+              className="bg-slate-900 border border-slate-800 rounded-3xl md:rounded-[40px] p-6 md:p-16 relative overflow-hidden"
             >
-              <div className="absolute top-10 left-10 opacity-5">
-                <Sparkles size={40} />
+              <div className="absolute top-6 left-6 md:top-10 md:left-10 opacity-5">
+                <Sparkles size={32} className="md:w-10 md:h-10" />
               </div>
 
-              <div className="mb-8 flex items-center gap-2">
+              <div className="mb-6 md:mb-8 flex items-center gap-2">
                 <span className="px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-bold uppercase tracking-[0.2em] rounded-full">
                   {currentQuestion.type}
                 </span>
@@ -291,16 +310,16 @@ export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: Quiz
                 </span>
               </div>
               
-              <div className="flex items-center gap-4 mb-12">
-                <h3 className="text-2xl md:text-4xl font-bold text-slate-100 leading-tight tracking-tight">
+              <div className="flex items-center gap-3 mb-8 md:mb-12">
+                <h3 className="text-xl md:text-4xl font-bold text-slate-100 leading-tight tracking-tight flex-1">
                   {currentQuestion.prompt}
                 </h3>
                   <button 
                     onClick={() => speakChinese(currentQuestion.prompt)}
-                    className="p-3 rounded-full bg-slate-800 border border-slate-700 text-indigo-400 hover:bg-indigo-500/10 hover:border-indigo-500/30 transition-all lg:p-4"
+                    className="p-2.5 rounded-full bg-slate-800 border border-slate-700 text-indigo-400 hover:bg-indigo-500/10 hover:border-indigo-500/30 transition-all md:p-4 shrink-0"
                     title="Listen"
                   >
-                    <Volume2 size={24} />
+                    <Volume2 size={20} className="md:w-6 md:h-6" />
                   </button>
               </div>
 
@@ -317,16 +336,16 @@ export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: Quiz
                         disabled={isAnswered}
                         onClick={() => handleAnswer(option)}
                         className={cn(
-                          "w-full p-5 text-left rounded-2xl border transition-all flex items-center justify-between group",
+                          "w-full p-4 md:p-5 text-left rounded-xl md:rounded-2xl border transition-all flex items-center justify-between group",
                           !isAnswered && "border-slate-800 bg-slate-950/50 hover:border-indigo-500/50 hover:bg-slate-800/30",
                           isAnswered && isCorrect && "border-emerald-500 bg-emerald-500/10 text-emerald-400",
                           isAnswered && isSelected && !isCorrect && "border-red-500 bg-red-500/10 text-red-400",
                           isAnswered && !isSelected && !isCorrect && "border-slate-800 opacity-30"
                         )}
                       >
-                        <span className="font-medium text-lg">{option}</span>
-                        {isAnswered && isCorrect && <Check size={20} />}
-                        {isAnswered && isSelected && !isCorrect && <X size={20} />}
+                        <span className="font-medium text-base md:text-lg">{option}</span>
+                        {isAnswered && isCorrect && <Check size={18} className="md:w-5 md:h-5" />}
+                        {isAnswered && isSelected && !isCorrect && <X size={18} className="md:w-5 md:h-5" />}
                       </button>
                     );
                   })}
@@ -415,51 +434,76 @@ export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: Quiz
 
               {/* Flashcard */}
               {currentQuestion.type === 'flashcard' && (
-                <div className="flex flex-col items-center justify-center min-h-[300px]">
+                <div className="flex flex-col items-center justify-center min-h-[350px] md:min-h-[450px]">
                   <motion.div
                     animate={{ rotateY: isFlipped ? 180 : 0 }}
                     transition={{ duration: 0.6, type: 'spring', stiffness: 260, damping: 20 }}
                     onClick={() => setIsFlipped(!isFlipped)}
-                    className="relative w-full aspect-[4/3] max-w-sm cursor-pointer [perspective:1000px] group"
+                    className="relative w-full aspect-[4/3] max-w-sm cursor-pointer [perspective:1000px] group mb-8"
                   >
                     <div className={cn(
-                      "absolute inset-0 w-full h-full rounded-[40px] border-2 border-slate-800 bg-slate-950 flex flex-col items-center justify-center p-10 backface-hidden transition-colors shadow-2xl overflow-hidden",
-                      isFlipped ? "[transform:rotateY(180deg)]" : "group-hover:border-indigo-500/50"
+                      "absolute inset-0 w-full h-full rounded-[40px] border-2 border-slate-800 bg-slate-950 flex flex-col items-center justify-center p-10 backface-hidden transition-all duration-500 shadow-2xl overflow-hidden",
+                      isFlipped ? "[transform:rotateY(180deg)] opacity-0 pointer-events-none" : "group-hover:border-indigo-500/50 group-hover:bg-slate-900/50"
                     )}>
-                      {!isFlipped ? (
-                        <>
-                          <div className="absolute top-6 left-6 opacity-10">
-                            <Brain size={40} />
-                          </div>
-                          <h2 className="text-6xl md:text-8xl font-bold font-serif text-slate-100 mb-4">{currentQuestion.prompt}</h2>
-                          <p className="text-slate-500 text-sm uppercase tracking-[0.3em] font-bold">Nhấn để lật</p>
-                        </>
-                      ) : (
-                        <div className="[transform:rotateY(180deg)] w-full h-full flex flex-col items-center justify-center text-center">
-                          <h3 className="text-4xl font-bold text-indigo-400 mb-4">{currentQuestion.correctAnswer}</h3>
-                          <p className="text-slate-300 italic mb-6 leading-relaxed whitespace-pre-wrap">{currentQuestion.explanation}</p>
-                          <div className="flex gap-4">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleAnswer("wrong");
-                              }}
-                              className="px-6 py-2 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl font-bold hover:bg-red-500 hover:text-white transition-all text-xs"
-                            >
-                              Chưa nhớ
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleAnswer("correct");
-                              }}
-                              className="px-6 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl font-bold hover:bg-emerald-500 hover:text-white transition-all text-xs"
-                            >
-                              Đã nhớ
-                            </button>
-                          </div>
+                      <div className="absolute top-6 left-6 opacity-10">
+                        <Brain size={40} />
+                      </div>
+                      <h2 className="text-6xl md:text-8xl font-bold font-serif text-slate-100 mb-6 drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">
+                        {currentQuestion.prompt}
+                      </h2>
+                      <div className="mt-4 flex flex-col items-center gap-2">
+                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em] animate-pulse">Nhấn để lật</p>
+                        <span className="px-2 py-0.5 bg-slate-900 text-[8px] text-slate-600 rounded font-mono border border-slate-800">SPACE</span>
+                      </div>
+                    </div>
+
+                    <div className={cn(
+                      "absolute inset-0 w-full h-full rounded-[40px] border-2 border-indigo-500/30 bg-slate-900 flex flex-col items-center justify-center p-10 backface-hidden transition-all duration-500 shadow-2xl [transform:rotateY(180deg)]",
+                      !isFlipped ? "opacity-0 pointer-events-none" : "opacity-100"
+                    )}>
+                      <div className="w-full h-full flex flex-col items-center justify-center text-center">
+                        <div className="mb-2">
+                           <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 text-[9px] font-bold tracking-widest rounded uppercase border border-indigo-500/20">NGHĨA</span>
                         </div>
-                      )}
+                        <h3 className="text-3xl md:text-5xl font-bold text-white mb-6 leading-tight">{currentQuestion.correctAnswer}</h3>
+                        
+                        <div className="w-full max-w-xs h-[1px] bg-linear-to-r from-transparent via-slate-700 to-transparent mb-6" />
+                        
+                        <div className="space-y-4 w-full">
+                          <p className="text-slate-300 italic text-sm md:text-base leading-relaxed line-clamp-3 px-4">
+                            {currentQuestion.explanation}
+                          </p>
+                          
+                          {!isAnswered && (
+                            <div className="flex gap-3 justify-center pt-4">
+                              <div className="flex flex-col gap-1.5 items-center">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAnswer("wrong");
+                                  }}
+                                  className="px-6 py-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl font-bold hover:bg-red-500 hover:text-white transition-all text-xs"
+                                >
+                                  Chưa nhớ
+                                </button>
+                                <span className="text-[8px] font-mono text-slate-600 border border-slate-800 px-1 rounded">1</span>
+                              </div>
+                              <div className="flex flex-col gap-1.5 items-center">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAnswer("correct");
+                                  }}
+                                  className="px-6 py-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl font-bold hover:bg-emerald-500 hover:text-white transition-all text-xs"
+                                >
+                                  Đã nhớ
+                                </button>
+                                <span className="text-[8px] font-mono text-slate-600 border border-slate-800 px-1 rounded">2</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </motion.div>
                 </div>
