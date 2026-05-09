@@ -119,7 +119,9 @@ export default function App() {
   };
 
   const [isActive, setIsActive] = useState(false);
+  const [isGoalSettingOpen, setIsGoalSettingOpen] = useState(false);
   const lastActivityRef = React.useRef(Date.now());
+  const lastSaveTimeRef = React.useRef(0);
 
   const [todayStudyTime, setTodayStudyTime] = useState(() => {
     const saved = localStorage.getItem('study_time_data');
@@ -149,16 +151,23 @@ export default function App() {
       const isIdle = now - lastActivityRef.current > 60000; // 1 minute idle threshold
       const isVisible = document.visibilityState === 'visible';
 
-      if (!isIdle && isVisible) {
+      // ONLY count time if:
+      // 1. Not idle
+      // 2. Tab is visible
+      // 3. User is in active learning mode (Quiz/Flashcards)
+      if (!isIdle && isVisible && isQuizMode) {
         setIsActive(true);
         setTodayStudyTime(prev => {
           const newTime = prev + 1;
-          if (newTime % 5 === 0) { // Save every 5 seconds
+          
+          // Save incrementally (every 10 seconds or when closing)
+          if (now - lastSaveTimeRef.current > 10000) {
             const saved = localStorage.getItem('study_time_data');
             const data = saved ? JSON.parse(saved) : {};
             const today = new Date().toISOString().split('T')[0];
             data[today] = newTime;
             localStorage.setItem('study_time_data', JSON.stringify(data));
+            lastSaveTimeRef.current = now;
           }
           return newTime;
         });
@@ -174,7 +183,7 @@ export default function App() {
       window.removeEventListener('scroll', handleActivity);
       clearInterval(interval);
     };
-  }, [isActive]);
+  }, [isActive, isQuizMode]);
 
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -384,16 +393,32 @@ export default function App() {
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform text-indigo-500">
                   <Clock size={32} />
                 </div>
-                <div className="flex items-center gap-1.5 mb-1 relative z-10">
-                  <div className={cn("w-1 h-1 rounded-full", isActive ? "bg-emerald-500 animate-pulse" : "bg-slate-700")} />
-                  <h4 className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Thời gian học</h4>
+                <div className="flex items-center justify-between mb-1 relative z-10">
+                  <div className="flex items-center gap-1.5">
+                    <div className={cn("w-1 h-1 rounded-full", (isActive && isQuizMode) ? "bg-emerald-500 animate-pulse" : "bg-slate-700")} />
+                    <h4 className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Thời gian học</h4>
+                  </div>
+                  <button 
+                    onClick={() => setIsGoalSettingOpen(true)}
+                    className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-600 hover:text-indigo-400 transition-all"
+                    title="Cài đặt mục tiêu"
+                  >
+                    <Filter size={12} />
+                  </button>
                 </div>
                 <div className="text-2xl font-black text-white relative z-10">{formatTime(todayStudyTime)}</div>
-                <div className="mt-2 h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+                <div className="flex items-center justify-between mt-2 mb-1">
+                  <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tight">Mục tiêu {studyTimeGoal}p</span>
+                  <span className="text-[8px] font-bold text-indigo-400 uppercase tracking-tight">{timeGoalProgress}%</span>
+                </div>
+                <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden relative">
                   <motion.div 
                     initial={{ width: 0 }}
                     animate={{ width: `${timeGoalProgress}%` }}
-                    className="h-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]"
+                    className={cn(
+                      "h-full shadow-[0_0_8px_rgba(99,102,241,0.5)] transition-colors",
+                      timeGoalProgress >= 100 ? "bg-emerald-500" : "bg-indigo-500"
+                    )}
                   />
                 </div>
               </div>
@@ -941,7 +966,80 @@ export default function App() {
         </div>
       </main>
 
-      {/* Add Modal */}
+      {/* Goal Setting Modal */}
+      <AnimatePresence>
+        {isGoalSettingOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsGoalSettingOpen(false)}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-sm bg-slate-900 border border-slate-800 rounded-[32px] p-8 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-100">Mục tiêu học tập</h3>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-1">Set your daily study target</p>
+                </div>
+                <button onClick={() => setIsGoalSettingOpen(false)} className="p-2 hover:bg-slate-800 rounded-full text-slate-500 transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-4 text-center">
+                    Bạn muốn học bao lâu mỗi ngày?
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[15, 30, 45, 60, 90, 120].map((mins) => (
+                      <button
+                        key={mins}
+                        onClick={() => {
+                          setStudyTimeGoal(mins);
+                          localStorage.setItem('study_time_goal', mins.toString());
+                        }}
+                        className={cn(
+                          "py-4 rounded-2xl font-black transition-all border",
+                          studyTimeGoal === mins
+                            ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20"
+                            : "bg-slate-950 border-slate-800 text-slate-500 hover:border-indigo-500/30"
+                        )}
+                      >
+                        {mins} phút
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800/50">
+                  <div className="flex items-center gap-3 mb-2">
+                    <Sparkles className="text-amber-500" size={16} />
+                    <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tight">Kinh nghiệm từ Mentor</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-relaxed italic">
+                    "Học 15-30 phút mỗi ngày đều đặn hiệu quả hơn rất nhiều so với học 3 tiếng chỉ một lần duy nhất trong tuần."
+                  </p>
+                </div>
+
+                <button 
+                  onClick={() => setIsGoalSettingOpen(false)}
+                  className="w-full py-4 bg-white text-slate-950 rounded-2xl font-bold hover:bg-slate-100 transition-all mt-4"
+                >
+                  Xác nhận
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {isAdding && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
