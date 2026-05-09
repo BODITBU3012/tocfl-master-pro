@@ -30,6 +30,7 @@ export default function App() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<'newest' | 'mastery' | 'alphabetical'>('newest');
   const [showDueOnly, setShowDueOnly] = useState(false);
+  const [viewMode, setViewMode] = useState<'card' | 'compact'>('card');
 
   // Form state
   const [newWord, setNewWord] = useState('');
@@ -108,6 +109,75 @@ export default function App() {
     new: vocabulary.filter(v => v.masteryScore === 0).length,
     due: vocabulary.filter(v => !v.nextReviewAt || v.nextReviewAt <= Date.now()).length
   };
+
+  const [isActive, setIsActive] = useState(false);
+  const lastActivityRef = React.useRef(Date.now());
+
+  const [todayStudyTime, setTodayStudyTime] = useState(() => {
+    const saved = localStorage.getItem('study_time_data');
+    const data = saved ? JSON.parse(saved) : {};
+    const today = new Date().toISOString().split('T')[0];
+    return data[today] || 0;
+  });
+
+  const [studyTimeGoal, setStudyTimeGoal] = useState(() => {
+    const saved = localStorage.getItem('study_time_goal');
+    return saved ? parseInt(saved, 10) : 30; // default 30 minutes
+  });
+
+  useEffect(() => {
+    const handleActivity = () => {
+      lastActivityRef.current = Date.now();
+      if (!isActive) setIsActive(true);
+    };
+
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('click', handleActivity);
+    window.addEventListener('scroll', handleActivity);
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const isIdle = now - lastActivityRef.current > 60000; // 1 minute idle threshold
+      const isVisible = document.visibilityState === 'visible';
+
+      if (!isIdle && isVisible) {
+        setIsActive(true);
+        setTodayStudyTime(prev => {
+          const newTime = prev + 1;
+          if (newTime % 5 === 0) { // Save every 5 seconds
+            const saved = localStorage.getItem('study_time_data');
+            const data = saved ? JSON.parse(saved) : {};
+            const today = new Date().toISOString().split('T')[0];
+            data[today] = newTime;
+            localStorage.setItem('study_time_data', JSON.stringify(data));
+          }
+          return newTime;
+        });
+      } else {
+        setIsActive(false);
+      }
+    }, 1000);
+
+    return () => {
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('click', handleActivity);
+      window.removeEventListener('scroll', handleActivity);
+      clearInterval(interval);
+    };
+  }, [isActive]);
+
+  const formatTime = (seconds: number) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    if (hrs > 0) return `${hrs}h ${mins}m`;
+    if (mins > 0) return `${mins}m ${secs}s`;
+    return `${secs}s`;
+  };
+
+  const timeGoalProgress = Math.min(100, Math.round((todayStudyTime / (studyTimeGoal * 60)) * 100));
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500/30">
@@ -289,21 +359,41 @@ export default function App() {
             </div>
 
             {/* SRS Status Summary */}
-            <button 
-              onClick={() => {
-                setShowDueOnly(true);
-                setIsQuizMode(true);
-              }}
-              disabled={masteryStats.due === 0}
-              className="group bg-linear-to-br from-indigo-600 to-fuchsia-600 rounded-[32px] p-8 text-white text-left relative overflow-hidden shadow-2xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:hover:scale-100"
-            >
-              <div className="absolute top-0 right-0 p-6 opacity-20 -rotate-12 group-hover:rotate-0 transition-transform">
-                <Sparkles size={64} />
+            <div className="grid grid-cols-2 gap-4">
+              <button 
+                onClick={() => {
+                  setShowDueOnly(true);
+                  setIsQuizMode(true);
+                }}
+                disabled={masteryStats.due === 0}
+                className="group bg-linear-to-br from-indigo-600 to-fuchsia-600 rounded-[32px] p-6 text-white text-left relative overflow-hidden shadow-2xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:hover:scale-100"
+              >
+                <div className="absolute top-0 right-0 p-4 opacity-20 -rotate-12 group-hover:rotate-0 transition-transform">
+                  <Sparkles size={32} />
+                </div>
+                <h4 className="text-[8px] font-bold text-white/70 uppercase tracking-widest mb-1 relative z-10">Smart Review</h4>
+                <div className="text-2xl font-black relative z-10">{masteryStats.due}</div>
+                <p className="text-[10px] text-white/80 relative z-10 font-bold uppercase tracking-tight">Từ đến hạn</p>
+              </button>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-[32px] p-6 flex flex-col justify-between relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform text-indigo-500">
+                  <Clock size={32} />
+                </div>
+                <div className="flex items-center gap-1.5 mb-1 relative z-10">
+                  <div className={cn("w-1 h-1 rounded-full", isActive ? "bg-emerald-500 animate-pulse" : "bg-slate-700")} />
+                  <h4 className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Thời gian học</h4>
+                </div>
+                <div className="text-2xl font-black text-white relative z-10">{formatTime(todayStudyTime)}</div>
+                <div className="mt-2 h-1 w-full bg-slate-800 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${timeGoalProgress}%` }}
+                    className="h-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]"
+                  />
+                </div>
               </div>
-              <h4 className="text-[10px] font-bold text-white/70 uppercase tracking-widest mb-2 relative z-10">Smart Review</h4>
-              <div className="text-4xl font-black mb-1 relative z-10">{masteryStats.due} từ đến hạn</div>
-              <p className="text-xs text-white/80 relative z-10 font-medium">Ôn tập ngay bây giờ để tối ưu hóa trí nhớ.</p>
-            </button>
+            </div>
           </div>
         </div>
 
@@ -362,6 +452,31 @@ export default function App() {
               <option value="mastery">Thành thạo</option>
               <option value="alphabetical">A-Z</option>
             </select>
+
+            <div className="w-[1px] h-6 bg-slate-800 mx-1 shrink-0" />
+
+            <div className="flex items-center gap-1 p-1 bg-slate-950/50 border border-slate-800/50 rounded-[18px] shrink-0">
+              <button
+                onClick={() => setViewMode('card')}
+                className={cn(
+                  "p-2 rounded-[14px] transition-all",
+                  viewMode === 'card' ? "bg-white text-slate-950 shadow-xl" : "text-slate-500 hover:text-white"
+                )}
+                title="Chi tiết"
+              >
+                <LayoutGrid size={16} />
+              </button>
+              <button
+                onClick={() => setViewMode('compact')}
+                className={cn(
+                  "p-2 rounded-[14px] transition-all",
+                  viewMode === 'compact' ? "bg-white text-slate-950 shadow-xl" : "text-slate-500 hover:text-white"
+                )}
+                title="Danh sách"
+              >
+                <List size={16} />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -442,7 +557,11 @@ export default function App() {
         </AnimatePresence>
 
         {/* List Content */}
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className={cn(
+          viewMode === 'card' 
+            ? "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4" 
+            : "flex flex-col gap-2"
+        )}>
           <AnimatePresence mode="popLayout">
             {filteredVocab.map((item) => (
               <motion.div
@@ -453,10 +572,13 @@ export default function App() {
                 exit={{ opacity: 0, scale: 0.95 }}
                 onClick={() => toggleSelect(item.id)}
                 className={cn(
-                  "group bg-slate-900 border rounded-2xl p-4 md:p-5 transition-all cursor-pointer relative",
+                  "group transition-all cursor-pointer relative",
+                  viewMode === 'card' 
+                    ? "bg-slate-900 border rounded-2xl p-4 md:p-5" 
+                    : "bg-slate-900/40 hover:bg-slate-900 border border-slate-800/50 rounded-xl px-4 py-3 flex items-center justify-between",
                   item.isSelected 
                     ? "border-indigo-500 bg-indigo-500/5 ring-1 ring-indigo-500/30" 
-                    : item.color 
+                    : item.color && viewMode === 'card'
                       ? {
                           'border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.1)]': item.color === 'indigo',
                           'border-fuchsia-500/50 shadow-[0_0_15px_rgba(217,70,239,0.1)]': item.color === 'fuchsia',
@@ -469,168 +591,247 @@ export default function App() {
                 )}
               >
                 {item.isSelected && (
-                  <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center text-white shadow-lg ring-4 ring-slate-950 z-20">
-                    <Check size={12} strokeWidth={4} />
+                  <div className={cn(
+                    "bg-indigo-500 rounded-full flex items-center justify-center text-white shadow-lg ring-4 ring-slate-950 z-20",
+                    viewMode === 'card' ? "absolute -top-1.5 -right-1.5 w-5 h-5" : "absolute -left-1.5 top-1/2 -translate-y-1/2 w-4 h-4 ring-2"
+                  )}>
+                    <Check size={viewMode === 'card' ? 12 : 10} strokeWidth={4} />
                   </div>
                 )}
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex flex-col gap-1">
-                    <span className={cn(
-                      "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest self-start border",
-                      getLevelColor(item.level)
-                    )}>
-                      {item.level}
-                    </span>
-                    {item.nextReviewAt && (
-                      <span className="text-[8px] text-slate-500 font-bold uppercase tracking-tight">
-                        Next: {new Date(item.nextReviewAt).toLocaleDateString()}
-                      </span>
-                    )}
-                    {item.tags && item.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {item.tags.map(tag => (
-                          <button
-                            key={tag}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleTag(tag);
-                            }}
-                            className={cn(
-                              "px-1.5 py-0.5 rounded-[4px] text-[8px] font-bold uppercase tracking-tighter transition-all",
-                              selectedTags.includes(tag)
-                                ? "bg-indigo-500 text-white"
-                                : "bg-slate-800 text-slate-500 hover:text-slate-300"
-                            )}
-                          >
-                            {tag}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <button 
-                    onClick={() => removeVocab(item.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-600 hover:text-red-400 transition-all"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-                
-                <div className="mb-4">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xl md:text-2xl font-bold font-serif text-slate-100">{item.word}</h3>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        speakChinese(item.word);
-                      }}
-                      className="p-1 rounded-full bg-slate-800 text-slate-400 hover:text-indigo-400 hover:bg-slate-700 transition-all"
-                      title="Listen"
-                    >
-                      <Volume2 size={12} />
-                    </button>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        selectAll(false);
-                        toggleSelect(item.id);
-                        setPracticeMode('flashcards');
-                        setIsQuizMode(true);
-                      }}
-                      className="p-1 rounded-full bg-slate-800 text-slate-400 hover:text-fuchsia-400 hover:bg-slate-700 transition-all"
-                      title="Học với flashcard"
-                    >
-                      <BookOpen size={12} />
-                    </button>
-                  </div>
-                  <p className="text-[10px] md:text-xs text-slate-500 font-mono tracking-wider tabular-nums uppercase mt-0.5">{item.pinyin}</p>
-                </div>
 
-                <p className="text-xs md:text-sm text-slate-400 font-medium mb-4 line-clamp-2 min-h-[32px]">
-                  {item.meaning}
-                </p>
-
-                {/* Usage Explanation Section */}
-                <div className="mb-4">
-                  <AnimatePresence>
-                    {expandedVocabId === item.id && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="pt-2 pb-4 border-t border-slate-800/50 mt-2">
-                          <div className="mb-4">
-                            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2">Change Color Theme</p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {PREDEFINED_COLORS.map((color) => (
-                                <button
-                                  key={color.label}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    updateVocab(item.id, { color: color.value });
-                                  }}
-                                  className={cn(
-                                    "w-5 h-5 rounded-full border transition-all flex items-center justify-center",
-                                    color.class,
-                                    item.color === color.value ? "ring-1 ring-white ring-offset-1 ring-offset-slate-900 scale-110" : "opacity-60 hover:opacity-100"
-                                  )}
-                                  title={color.label}
-                                >
-                                  {item.color === color.value && <Check size={8} className="text-white" />}
-                                </button>
-                              ))}
-                            </div>
+                {viewMode === 'card' ? (
+                  <>
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex flex-col gap-1">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest self-start border",
+                          getLevelColor(item.level)
+                        )}>
+                          {item.level}
+                        </span>
+                        {item.nextReviewAt && (
+                          <span className="text-[8px] text-slate-500 font-bold uppercase tracking-tight">
+                            Next: {new Date(item.nextReviewAt).toLocaleDateString()}
+                          </span>
+                        )}
+                        {item.tags && item.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {item.tags.map(tag => (
+                              <button
+                                key={tag}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleTag(tag);
+                                }}
+                                className={cn(
+                                  "px-1.5 py-0.5 rounded-[4px] text-[8px] font-bold uppercase tracking-tighter transition-all",
+                                  selectedTags.includes(tag)
+                                    ? "bg-indigo-500 text-white"
+                                    : "bg-slate-800 text-slate-500 hover:text-slate-300"
+                                )}
+                              >
+                                {tag}
+                              </button>
+                            ))}
                           </div>
-                          {item.exampleSentence && (
-                            <div className="mt-3 py-2 px-3 bg-slate-950 rounded-lg border border-slate-800/50">
-                              <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Example</p>
-                              <div className="flex items-start gap-2">
-                                <p className="text-xs text-slate-200 font-serif italic flex-1">{item.exampleSentence}</p>
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    speakChinese(item.exampleSentence);
-                                  }}
-                                  className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-500 hover:text-indigo-400 transition-all"
-                                  title="Nghe câu ví dụ"
-                                >
-                                  <Volume2 size={12} />
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                  
-                  <button 
-                    onClick={() => setExpandedVocabId(expandedVocabId === item.id ? null : item.id)}
-                    className="w-full text-center text-[9px] font-bold text-slate-600 hover:text-slate-400 uppercase tracking-[0.2em] py-1 border-y border-transparent hover:border-slate-800/50 transition-all"
-                  >
-                    {expandedVocabId === item.id ? "Ẩn bớt" : "Xem chi tiết"}
-                  </button>
-                </div>
+                        )}
+                      </div>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeVocab(item.id);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-600 hover:text-red-400 transition-all"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    
+                    <div className="mb-4">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl md:text-2xl font-bold font-serif text-slate-100">{item.word}</h3>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            speakChinese(item.word);
+                          }}
+                          className="p-1 rounded-full bg-slate-800 text-slate-400 hover:text-indigo-400 hover:bg-slate-700 transition-all"
+                          title="Listen"
+                        >
+                          <Volume2 size={12} />
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            selectAll(false);
+                            toggleSelect(item.id);
+                            setPracticeMode('flashcards');
+                            setIsQuizMode(true);
+                          }}
+                          className="p-1 rounded-full bg-slate-800 text-slate-400 hover:text-fuchsia-400 hover:bg-slate-700 transition-all"
+                          title="Học với flashcard"
+                        >
+                          <BookOpen size={12} />
+                        </button>
+                      </div>
+                      <p className="text-[10px] md:text-xs text-slate-500 font-mono tracking-wider tabular-nums uppercase mt-0.5">{item.pinyin}</p>
+                    </div>
 
-                <div className="flex items-center justify-between gap-3 pt-2">
-                  <div className="flex-1 h-1 bg-slate-800 rounded-full overflow-hidden">
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${item.masteryScore}%` }}
-                      className={cn(
-                        "h-full transition-colors duration-500",
-                        item.masteryScore >= 80 ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" : 
-                        item.masteryScore >= 40 ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]" : 
-                        "bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.4)]"
-                      )}
-                    />
-                  </div>
-                  <span className="text-[10px] font-mono font-bold text-slate-500 tabular-nums">
-                    {item.masteryScore}%
-                  </span>
-                </div>
+                    <p className="text-xs md:text-sm text-slate-400 font-medium mb-4 line-clamp-2 min-h-[32px]">
+                      {item.meaning}
+                    </p>
+
+                    {/* Usage Explanation Section */}
+                    <div className="mb-4">
+                      <AnimatePresence>
+                        {expandedVocabId === item.id && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="pt-2 pb-4 border-t border-slate-800/50 mt-2">
+                              <div className="mb-4">
+                                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2">Change Color Theme</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {PREDEFINED_COLORS.map((color) => (
+                                    <button
+                                      key={color.label}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        updateVocab(item.id, { color: color.value });
+                                      }}
+                                      className={cn(
+                                        "w-5 h-5 rounded-full border transition-all flex items-center justify-center",
+                                        color.class,
+                                        item.color === color.value ? "ring-1 ring-white ring-offset-1 ring-offset-slate-900 scale-110" : "opacity-60 hover:opacity-100"
+                                      )}
+                                      title={color.label}
+                                    >
+                                      {item.color === color.value && <Check size={8} className="text-white" />}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              {item.exampleSentence && (
+                                <div className="mt-3 py-2 px-3 bg-slate-950 rounded-lg border border-slate-800/50">
+                                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Example</p>
+                                  <div className="flex items-start gap-2">
+                                    <p className="text-xs text-slate-200 font-serif italic flex-1">{item.exampleSentence}</p>
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        speakChinese(item.exampleSentence);
+                                      }}
+                                      className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-500 hover:text-indigo-400 transition-all"
+                                      title="Nghe câu ví dụ"
+                                    >
+                                      <Volume2 size={12} />
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                      
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpandedVocabId(expandedVocabId === item.id ? null : item.id);
+                        }}
+                        className="w-full text-center text-[9px] font-bold text-slate-600 hover:text-slate-400 uppercase tracking-[0.2em] py-1 border-y border-transparent hover:border-slate-800/50 transition-all"
+                      >
+                        {expandedVocabId === item.id ? "Ẩn bớt" : "Xem chi tiết"}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 pt-2">
+                      <div className="flex-1 h-1 bg-slate-800 rounded-full overflow-hidden">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${item.masteryScore}%` }}
+                          className={cn(
+                            "h-full transition-colors duration-500",
+                            item.masteryScore >= 80 ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" : 
+                            item.masteryScore >= 40 ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]" : 
+                            "bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.4)]"
+                          )}
+                        />
+                      </div>
+                      <span className="text-[10px] font-mono font-bold text-slate-500 tabular-nums">
+                        {item.masteryScore}%
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-4 flex-1">
+                      <div className={cn(
+                        "w-2 h-8 rounded-full shrink-0",
+                        getLevelColor(item.level, 'solid').replace('text-', 'bg-')
+                      )} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-bold text-slate-100 truncate">{item.word}</h3>
+                          <span className="text-[9px] text-slate-500 font-mono tracking-tight uppercase">{item.pinyin}</span>
+                        </div>
+                        <p className="text-xs text-slate-400 truncate">{item.meaning}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 shrink-0 px-2 lg:px-6 border-x border-slate-800/50 h-10 mx-2 lg:mx-4">
+                      <div className="flex flex-col items-center">
+                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter mb-0.5">{item.masteryScore}%</span>
+                        <div className="w-12 h-1 bg-slate-800 rounded-full overflow-hidden">
+                          <div 
+                            className={cn(
+                              "h-full",
+                              item.masteryScore >= 80 ? "bg-emerald-500" : 
+                              item.masteryScore >= 40 ? "bg-amber-500" : "bg-indigo-500"
+                            )}
+                            style={{ width: `${item.masteryScore}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          speakChinese(item.word);
+                        }}
+                        className="p-2 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-indigo-400 transition-all"
+                      >
+                        <Volume2 size={14} />
+                      </button>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          selectAll(false);
+                          toggleSelect(item.id);
+                          setPracticeMode('flashcards');
+                          setIsQuizMode(true);
+                        }}
+                        className="p-2 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-fuchsia-400 transition-all"
+                      >
+                        <BookOpen size={14} />
+                      </button>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeVocab(item.id);
+                        }}
+                        className="p-2 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-red-400 transition-all"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </>
+                )}
               </motion.div>
             ))}
           </AnimatePresence>

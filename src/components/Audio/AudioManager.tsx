@@ -24,6 +24,20 @@ export default function AudioManager({ onClose }: AudioManagerProps) {
   const [playbackRate, setPlaybackRate] = useState(1);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [isAutoPlay, setIsAutoPlay] = useState(true);
+
+  const playNext = async () => {
+    if (!currentPlayingId) return;
+    const currentIndex = lessons.findIndex(l => l.id === currentPlayingId);
+    if (currentIndex !== -1 && currentIndex < lessons.length - 1) {
+      const nextLesson = lessons[currentIndex + 1];
+      await playAudio(nextLesson.id);
+    } else {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+      setCurrentPlayingId(null);
+    }
+  };
 
   useEffect(() => {
     if (audioRef.current) {
@@ -243,12 +257,26 @@ export default function AudioManager({ onClose }: AudioManagerProps) {
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Danh sách bài giảng ({lessons.length})</h3>
-                <button 
-                  onClick={() => setIsUploading(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/20"
-                >
-                  <Plus size={16} /> Nhập bài mới
-                </button>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => setIsAutoPlay(!isAutoPlay)}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border",
+                      isAutoPlay 
+                        ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-400" 
+                        : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-400"
+                    )}
+                  >
+                    <div className={cn("w-1.5 h-1.5 rounded-full", isAutoPlay ? "bg-indigo-400 animate-pulse" : "bg-slate-600")} />
+                    Auto-play Next
+                  </button>
+                  <button 
+                    onClick={() => setIsUploading(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/20"
+                  >
+                    <Plus size={16} /> Nhập bài mới
+                  </button>
+                </div>
               </div>
 
               {lessons.length === 0 ? (
@@ -266,17 +294,44 @@ export default function AudioManager({ onClose }: AudioManagerProps) {
                       layout
                       key={lesson.id}
                       className={cn(
-                        "p-5 bg-slate-950 border rounded-2xl flex flex-col transition-all group",
-                        currentPlayingId === lesson.id ? "border-indigo-500/50 bg-indigo-500/5 ring-1 ring-indigo-500/30" : "border-slate-800 hover:border-slate-700"
+                        "p-5 bg-slate-950 border rounded-2xl flex flex-col transition-all group relative overflow-hidden",
+                        currentPlayingId === lesson.id 
+                          ? "border-indigo-500 bg-indigo-500/5 shadow-[0_0_20px_rgba(99,102,241,0.1)] ring-1 ring-indigo-500/30" 
+                          : "border-slate-800 hover:border-slate-700"
                       )}
                     >
+                      {currentPlayingId === lesson.id && (
+                        <div className="absolute top-0 right-0 p-3 flex gap-0.5 items-end h-12">
+                          {[0, 1, 2, 3].map((i) => (
+                            <motion.div
+                              key={i}
+                              animate={{ 
+                                height: !audioRef.current?.paused ? [4, 16, 8, 12, 6] : 4 
+                              }}
+                              transition={{ 
+                                duration: 0.8, 
+                                repeat: Infinity, 
+                                ease: "easeInOut",
+                                delay: i * 0.1
+                              }}
+                              className="w-1 bg-indigo-500 rounded-full"
+                            />
+                          ))}
+                        </div>
+                      )}
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
                           <div className={cn(
-                            "w-10 h-10 rounded-xl flex items-center justify-center",
-                            currentPlayingId === lesson.id ? "bg-indigo-600 text-white" : "bg-slate-900 text-slate-500"
+                            "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+                            currentPlayingId === lesson.id 
+                              ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/40 scale-110" 
+                              : "bg-slate-900 text-slate-500"
                           )}>
-                            <FileAudio size={20} />
+                            {currentPlayingId === lesson.id && !audioRef.current?.paused ? (
+                              <Music size={20} className="animate-pulse" />
+                            ) : (
+                              <FileAudio size={20} />
+                            )}
                           </div>
                           <div>
                             <h4 className="font-bold text-sm text-slate-100 group-hover:text-indigo-400 transition-colors line-clamp-1">{lesson.title}</h4>
@@ -419,9 +474,13 @@ export default function AudioManager({ onClose }: AudioManagerProps) {
                 onPlay={() => setCurrentPlayingId(currentPlayingId)}
                 onPause={() => setCurrentPlayingId(prev => prev)}
                 onEnded={() => {
-                  URL.revokeObjectURL(audioUrl);
-                  setAudioUrl(null);
-                  setCurrentPlayingId(null);
+                  if (isAutoPlay) {
+                    playNext();
+                  } else {
+                    if (audioUrl) URL.revokeObjectURL(audioUrl);
+                    setAudioUrl(null);
+                    setCurrentPlayingId(null);
+                  }
                 }}
               />
             </motion.div>
