@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Search, BookOpen, Brain, Trash2, ChevronRight, X, Sparkles, Filter, LayoutGrid, List, TrendingUp, Calendar, Loader2 } from 'lucide-react';
+import { Timer, Trophy, AlertCircle, Volume2, Plus, Search, BookOpen, Brain, Trash2, ChevronRight, X, Sparkles, Filter, LayoutGrid, List, TrendingUp, Calendar, Loader2, FileText, Upload } from 'lucide-react';
 import { useVocabulary } from './hooks/useVocabulary';
 import { useGrammar } from './hooks/useGrammar';
 import { ProficiencyLevel, VocabularyItem, GrammarItem, PracticeMode } from './types';
 import QuizEngine from './components/Quiz/QuizEngine';
-import { getUsageExplanation, getGrammarExplanation } from './services/geminiService';
 import { cn, getLevelColor } from './lib/utils';
-import { Timer, Trophy, AlertCircle, Volume2 } from 'lucide-react';
 import { speakChinese } from './lib/tts';
 
 export default function App() {
-  const { vocabulary, addVocab, removeVocab, recordResult, updateUsageExplanation } = useVocabulary();
-  const { grammar, updateGrammarMastery, updateGrammarExplanation, getLevelProgress, isLevelUnlocked, currentLevel, getRecommendations } = useGrammar();
+  const { vocabulary, addVocab, addBulkVocab, removeVocab, recordResult } = useVocabulary();
+  const { grammar, updateGrammarMastery, getLevelProgress, isLevelUnlocked, currentLevel, getRecommendations } = useGrammar();
   
   const [currentTab, setCurrentTab] = useState<'vocabulary' | 'grammar'>('vocabulary');
   
@@ -23,8 +21,10 @@ export default function App() {
 
   const [expandedVocabId, setExpandedVocabId] = useState<string | null>(null);
   const [expandedGrammarId, setExpandedGrammarId] = useState<string | null>(null);
-  const [isExplaining, setIsExplaining] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const [isBulkImporting, setIsBulkImporting] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+  const [isParsingBulk, setIsParsingBulk] = useState(false);
   const [isQuizMode, setIsQuizMode] = useState(false);
   const [practiceMode, setPracticeMode] = useState<PracticeMode>('standard');
   const [isSelectingMode, setIsSelectingMode] = useState(false);
@@ -44,7 +44,13 @@ export default function App() {
   const [newLevel, setNewLevel] = useState<ProficiencyLevel>('B1');
   const [newCategoryType, setNewCategoryType] = useState<'standard' | 'custom'>('custom');
 
-  const allTags = Array.from(new Set(vocabulary.flatMap(v => v.tags || []) as string[])).sort();
+  const tagCounts = vocabulary.reduce((acc, item) => {
+    (item.tags || []).forEach(tag => {
+      acc[tag] = (acc[tag] || 0) + 1;
+    });
+    return acc;
+  }, {} as Record<string, number>);
+  const allTags = Object.keys(tagCounts).sort();
 
   const filteredVocab = vocabulary.filter(v => {
     const matchesSearch = v.word.includes(searchTerm) || v.meaning.toLowerCase().includes(searchTerm.toLowerCase());
@@ -312,13 +318,22 @@ export default function App() {
                 Luyện tập {currentTab}
               </button>
               {currentTab === 'vocabulary' && (
-                <button 
-                  onClick={() => setIsAdding(true)}
-                  className="px-6 py-3 bg-slate-800 text-slate-100 rounded-xl font-bold hover:bg-slate-700 transition-all flex items-center gap-2 border border-slate-700"
-                >
-                  <Plus size={18} />
-                  Thêm từ mới
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setIsAdding(true)}
+                    className="px-6 py-3 bg-slate-800 text-slate-100 rounded-xl font-bold hover:bg-slate-700 transition-all flex items-center gap-2 border border-slate-700"
+                  >
+                    <Plus size={18} />
+                    Thêm từ mới
+                  </button>
+                  <button 
+                    onClick={() => setIsBulkImporting(true)}
+                    className="px-6 py-3 bg-slate-900 border border-slate-800 text-slate-400 rounded-xl font-bold hover:border-indigo-500/30 hover:text-indigo-400 transition-all flex items-center gap-2"
+                  >
+                    <Upload size={18} />
+                    Nhập hàng loạt
+                  </button>
+                </div>
               )}
             </div>
           </motion.div>
@@ -572,29 +587,40 @@ export default function App() {
         </div>
 
         {allTags.length > 0 && currentTab === 'vocabulary' && (
-          <div className="flex flex-wrap gap-2 mb-6">
-            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest pt-1.5 mr-2">Tags:</span>
+          <div className="flex flex-wrap items-center gap-2 mb-6">
+            <div className="flex items-center gap-2 mr-2">
+              <Filter size={14} className="text-slate-600" />
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">Lọc theo thẻ:</span>
+            </div>
             {allTags.map(tag => (
               <button
                 key={tag}
                 onClick={() => toggleTag(tag)}
                 className={cn(
-                  "px-2.5 py-1 rounded-full text-[10px] font-medium transition-all flex items-center gap-1.5",
+                  "px-3 py-1 rounded-full text-[10px] font-bold transition-all flex items-center gap-2 border",
                   selectedTags.includes(tag)
-                    ? "bg-indigo-500 text-white shadow-[0_0_10px_rgba(99,102,241,0.3)]"
-                    : "bg-slate-900 text-slate-500 hover:text-slate-300 border border-slate-800"
+                    ? "bg-indigo-600 border-indigo-500 text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]"
+                    : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300 hover:border-slate-700"
                 )}
               >
                 {tag}
+                <span className={cn(
+                  "text-[9px] px-1.5 py-0.5 rounded-full font-mono",
+                  selectedTags.includes(tag) ? "bg-indigo-500 text-white" : "bg-slate-800 text-slate-600"
+                )}>
+                  {tagCounts[tag]}
+                </span>
                 {selectedTags.includes(tag) && <X size={10} />}
               </button>
             ))}
             {selectedTags.length > 0 && (
               <button 
                 onClick={() => setSelectedTags([])}
-                className="text-[9px] font-bold text-slate-600 hover:text-indigo-400 uppercase tracking-widest ml-2"
+                className="ml-2 p-2 text-slate-500 hover:text-indigo-400 transition-colors flex items-center gap-1.5"
+                title="Xóa tất cả bộ lọc thẻ"
               >
-                Clear
+                <X size={14} />
+                <span className="text-[10px] font-bold uppercase tracking-widest">Xóa lọc</span>
               </button>
             )}
           </div>
@@ -688,36 +714,22 @@ export default function App() {
                         className="overflow-hidden"
                       >
                         <div className="pt-2 pb-4 border-t border-slate-800/50 mt-2">
-                          <h4 className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2 flex items-center gap-1">
-                            <Sparkles size={10} /> AI Usage Analysis
-                          </h4>
-                          {item.usageExplanation ? (
-                            <p className="text-[11px] text-slate-300 leading-relaxed italic">
-                              "{item.usageExplanation}"
-                            </p>
-                          ) : (
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                if (isExplaining) return;
-                                setIsExplaining(true);
-                                try {
-                                  const explanation = await getUsageExplanation(item);
-                                  updateUsageExplanation(item.id, explanation);
-                                } finally {
-                                  setIsExplaining(false);
-                                }
-                              }}
-                              className="text-[10px] font-bold text-slate-500 hover:text-indigo-400 flex items-center gap-1 py-1"
-                            >
-                              {isExplaining ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
-                              Generate AI Explanation
-                            </button>
-                          )}
                           {item.exampleSentence && (
                             <div className="mt-3 py-2 px-3 bg-slate-950 rounded-lg border border-slate-800/50">
                               <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Example</p>
-                              <p className="text-xs text-slate-200 font-serif italic">{item.exampleSentence}</p>
+                              <div className="flex items-start gap-2">
+                                <p className="text-xs text-slate-200 font-serif italic flex-1">{item.exampleSentence}</p>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    speakChinese(item.exampleSentence);
+                                  }}
+                                  className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-500 hover:text-indigo-400 transition-all"
+                                  title="Nghe câu ví dụ"
+                                >
+                                  <Volume2 size={12} />
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -729,7 +741,7 @@ export default function App() {
                     onClick={() => setExpandedVocabId(expandedVocabId === item.id ? null : item.id)}
                     className="w-full text-center text-[9px] font-bold text-slate-600 hover:text-slate-400 uppercase tracking-[0.2em] py-1 border-y border-transparent hover:border-slate-800/50 transition-all"
                   >
-                    {expandedVocabId === item.id ? "Show Less" : "Details & AI Usage"}
+                    {expandedVocabId === item.id ? "Ẩn bớt" : "Xem chi tiết"}
                   </button>
                 </div>
 
@@ -779,34 +791,6 @@ export default function App() {
                         </div>
                       )}
                     </div>
-                    <button 
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        setExpandedGrammarId(prev => prev === item.id ? null : item.id);
-                        if (!item.aiExplanation && !isExplaining) {
-                          setIsExplaining(true);
-                          try {
-                            const explanation = await getGrammarExplanation(item);
-                            updateGrammarExplanation(item.id, explanation);
-                          } finally {
-                            setIsExplaining(false);
-                          }
-                        }
-                      }}
-                      className={cn(
-                        "p-1.5 rounded-lg transition-all border shrink-0 h-fit",
-                        item.aiExplanation 
-                          ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-400" 
-                          : "bg-slate-800 border-transparent hover:border-indigo-500/30 text-slate-400 hover:text-indigo-400"
-                      )}
-                      title="AI Deep Analysis"
-                    >
-                      {isExplaining && expandedGrammarId === item.id ? (
-                        <Loader2 size={12} className="animate-spin" />
-                      ) : (
-                        <Sparkles size={12} />
-                      )}
-                    </button>
                   </div>
                   {item.masteryScore >= 80 && (
                     <Trophy size={14} className="text-amber-400" />
@@ -835,37 +819,21 @@ export default function App() {
                         className="overflow-hidden"
                       >
                         <div className="pt-2 pb-4 border-t border-slate-800/50 mt-2">
-                          <h4 className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2 flex items-center gap-1">
-                            <Sparkles size={10} /> AI Grammar Analysis
-                          </h4>
-                          {item.aiExplanation ? (
-                            <div className="text-[11px] text-slate-300 leading-relaxed italic whitespace-pre-wrap">
-                              {item.aiExplanation}
-                            </div>
-                          ) : (
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                if (isExplaining) return;
-                                setIsExplaining(true);
-                                try {
-                                  const explanation = await getGrammarExplanation(item);
-                                  updateGrammarExplanation(item.id, explanation);
-                                } finally {
-                                  setIsExplaining(false);
-                                }
-                              }}
-                              className="text-[10px] font-bold text-slate-500 hover:text-indigo-400 flex items-center gap-1 py-1"
-                            >
-                              {isExplaining ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
-                              Generate AI Deep Analysis
-                            </button>
-                          )}
                           <div className="mt-4 space-y-2">
                             <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Examples</p>
                             {item.exampleSentences.map((s, i) => (
-                              <div key={i} className="p-2 bg-slate-950 rounded-lg border border-slate-800/50">
-                                <p className="text-xs text-slate-200 font-serif italic">{s}</p>
+                              <div key={i} className="p-2 bg-slate-950 rounded-lg border border-slate-800/50 flex items-start gap-2">
+                                <p className="text-xs text-slate-200 font-serif italic flex-1">{s}</p>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    speakChinese(s);
+                                  }}
+                                  className="p-1 rounded-md bg-slate-900 border border-slate-800 text-slate-500 hover:text-indigo-400 transition-all"
+                                  title="Nghe câu ví dụ"
+                                >
+                                  <Volume2 size={12} />
+                                </button>
                               </div>
                             ))}
                           </div>
@@ -878,7 +846,7 @@ export default function App() {
                     onClick={() => setExpandedGrammarId(expandedGrammarId === item.id ? null : item.id)}
                     className="w-full text-center text-[9px] font-bold text-slate-600 hover:text-slate-400 uppercase tracking-[0.2em] py-1 border-y border-transparent hover:border-slate-800/50 transition-all"
                   >
-                    {expandedGrammarId === item.id ? "Show Less" : "Details & AI Analysis"}
+                    {expandedGrammarId === item.id ? "Ẩn bớt" : "Xem chi tiết"}
                   </button>
                 </div>
 
@@ -1043,6 +1011,106 @@ export default function App() {
                   Save to Library
                 </button>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Import Modal */}
+      <AnimatePresence>
+        {isBulkImporting && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-slate-900 border border-slate-800 w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl"
+            >
+              <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400">
+                    <Upload size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-100">Nhập từ vựng hàng loạt</h3>
+                    <p className="text-xs text-slate-500">Dán danh sách từ vựng hoặc ghi chú của bạn vào đây.</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    setIsBulkImporting(false);
+                    setBulkText('');
+                  }}
+                  className="p-2 hover:bg-slate-800 rounded-lg text-slate-500 transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6">
+                <div className="mb-4">
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Dữ liệu từ vựng</label>
+                  <textarea 
+                    placeholder="Ví dụ:
+学习 - xué xí - học tập
+挑战 - tiǎo zhàn - thách thức
+Hoặc dán ghi chú tiếng Trung của bạn tại đây..."
+                    value={bulkText}
+                    onChange={(e) => setBulkText(e.target.value)}
+                    className="w-full h-64 bg-slate-950 border border-slate-800 rounded-2xl p-4 text-slate-200 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none font-mono text-sm"
+                  />
+                  <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-500">
+                    <BookOpen size={12} className="text-indigo-400" />
+                    <span>Nhập định dạng: Từ - Pinyin - Nghĩa (mỗi từ một dòng)</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-8">
+                  <button 
+                    onClick={async () => {
+                      if (!bulkText.trim()) return;
+                      setIsParsingBulk(true);
+                      try {
+                        const lines = bulkText.split('\n').filter(line => line.trim());
+                        const items = lines.map(line => {
+                          const parts = line.split(/[-–—:]/).map(p => p.trim());
+                          return {
+                            word: parts[0] || '',
+                            pinyin: parts[1] || '',
+                            meaning: parts[2] || parts[1] || '',
+                            level: 'B1' as ProficiencyLevel,
+                            category: 'custom' as const,
+                            tags: [],
+                            exampleSentence: ''
+                          };
+                        }).filter(item => item.word);
+
+                        if (items.length > 0) {
+                          addBulkVocab(items);
+                          setIsBulkImporting(false);
+                          setBulkText('');
+                        }
+                      } finally {
+                        setIsParsingBulk(false);
+                      }
+                    }}
+                    disabled={!bulkText.trim() || isParsingBulk}
+                    className="flex-1 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold transition-all shadow-lg shadow-indigo-600/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isParsingBulk ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        Đang xử lý...
+                      </>
+                    ) : (
+                      <>
+                        <Plus size={18} />
+                        Thêm tất cả
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}

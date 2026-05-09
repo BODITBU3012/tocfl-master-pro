@@ -3,11 +3,11 @@ import { VocabularyItem, ProficiencyLevel } from '../types';
 import { calculateNextReview } from '../lib/srs';
 
 const STANDARD_VOCAB: Omit<VocabularyItem, 'id' | 'createdAt' | 'masteryScore' | 'repetitionCount' | 'srsInterval' | 'srsEase'>[] = [
-  { word: '學習', pinyin: 'xué xí', meaning: 'Học tập; nghiên cứu', level: 'B1', category: 'standard', tags: [], exampleSentence: '他每天努力學習中文。' },
-  { word: '挑戰', pinyin: 'tiǎo zhàn', meaning: 'Thách thức; thử thách', level: 'B1', category: 'standard', tags: [], exampleSentence: '人生充滿了各種挑戰。' },
-  { word: '發展', pinyin: 'fā zhǎn', meaning: 'Phát triển', level: 'B1', category: 'standard', tags: [], exampleSentence: '這座城市的發展非常迅速。' },
-  { word: '成功', pinyin: 'chéng gōng', meaning: 'Thành công', level: 'B1', category: 'standard', tags: [], exampleSentence: '只有努力才能獲得成功。' },
-  { word: '簡單', pinyin: 'jiǎn dān', meaning: 'Đơn giản', level: 'A1', category: 'standard', tags: [], exampleSentence: '這個問題很簡單。' },
+  { word: '學習', pinyin: 'xué xí', meaning: 'Học tập; nghiên cứu', level: 'B1', category: 'standard', tags: ['Giáo dục', 'Hoạt động'], exampleSentence: '他每天努力學習中文。' },
+  { word: '挑戰', pinyin: 'tiǎo zhàn', meaning: 'Thách thức; thử thách', level: 'B1', category: 'standard', tags: ['Cuộc sống', 'Công việc'], exampleSentence: '人生充滿了各種挑戰。' },
+  { word: '發展', pinyin: 'fā zhǎn', meaning: 'Phát triển', level: 'B1', category: 'standard', tags: ['Kinh tế', 'Xã hội'], exampleSentence: '這座城市的發展非常迅速。' },
+  { word: '成功', pinyin: 'chéng gōng', meaning: 'Thành công', level: 'B1', category: 'standard', tags: ['Cuộc sống', 'Thành tựu'], exampleSentence: '只有努力才能獲得成功。' },
+  { word: '簡單', pinyin: 'jiǎn dān', meaning: 'Đơn giản', level: 'A1', category: 'standard', tags: ['Tính chất'], exampleSentence: '這個問題很簡單。' },
 ];
 
 const INITIAL_EASE = 2.5;
@@ -71,6 +71,19 @@ export function useVocabulary() {
     setVocabulary(prev => [...prev, newItem]);
   };
 
+  const addBulkVocab = (items: Omit<VocabularyItem, 'id' | 'createdAt' | 'masteryScore' | 'srsInterval' | 'srsEase' | 'repetitionCount'>[]) => {
+    const newItems: VocabularyItem[] = items.map(item => ({
+      ...item,
+      id: Math.random().toString(36).substr(2, 9),
+      createdAt: Date.now(),
+      masteryScore: 0,
+      srsInterval: 0,
+      srsEase: INITIAL_EASE,
+      repetitionCount: 0,
+    }));
+    setVocabulary(prev => [...prev, ...newItems]);
+  };
+
   const removeVocab = (id: string) => {
     setVocabulary(prev => prev.filter(v => v.id !== id));
   };
@@ -101,7 +114,5 @@ export function useVocabulary() {
     }));
   };
 
-  return { vocabulary, isLoaded, addVocab, removeVocab, recordResult, updateUsageExplanation: (id: string, explanation: string) => {
-    setVocabulary(prev => prev.map(v => v.id === id ? { ...v, usageExplanation: explanation } : v));
-  } };
+  return { vocabulary, isLoaded, addVocab, addBulkVocab, removeVocab, recordResult };
 }

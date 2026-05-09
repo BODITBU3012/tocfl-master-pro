@@ -177,10 +177,6 @@ export function useGrammar() {
     }));
   };
 
-  const updateGrammarExplanation = (id: string, explanation: string) => {
-    setGrammar(prev => prev.map(g => g.id === id ? { ...g, aiExplanation: explanation } : g));
-  };
-
   const getLevelProgress = (level: ProficiencyLevel) => {
     const levelItems = grammar.filter(g => g.level === level);
     if (levelItems.length === 0) return 0;
@@ -215,7 +211,6 @@ export function useGrammar() {
   return { 
     grammar, 
     updateGrammarMastery, 
-    updateGrammarExplanation,
     getLevelProgress, 
     isLevelUnlocked,
     currentLevel,

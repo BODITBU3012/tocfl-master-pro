@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Check, X, ArrowRight, RotateCcw, Brain, Loader2, Sparkles, Volume2 } from 'lucide-react';
+import { Check, X, ArrowRight, RotateCcw, Brain, Loader2, Sparkles, Volume2, Timer, Trophy, AlertCircle } from 'lucide-react';
 import { VocabularyItem, GrammarItem, QuizQuestion, QuestionType, PracticeMode } from '../../types';
-import { generateQuestion, generateGrammarQuestion } from '../../services/geminiService';
 import { cn, getLevelColor } from '../../lib/utils';
 import { speakChinese } from '../../lib/tts';
 import Confetti from 'react-confetti';
-import { Timer, Trophy, AlertCircle } from 'lucide-react';
 
 interface QuizEngineProps {
   vocabulary?: VocabularyItem[];
@@ -15,6 +13,84 @@ interface QuizEngineProps {
   mode: PracticeMode;
   onFinish: (correctIds: string[], totalQuestions: number) => void;
   onClose: () => void;
+}
+
+// Local question generators
+function generateLocalVocabQuestion(pool: VocabularyItem[], target: VocabularyItem, type: QuestionType): QuizQuestion {
+  const distractors = pool.filter(v => v.id !== target.id).sort(() => 0.5 - Math.random()).slice(0, 3);
+  
+  if (type === 'multiple-choice') {
+    const options = [target.meaning, ...distractors.map(d => d.meaning)].sort(() => 0.5 - Math.random());
+    return {
+      id: Math.random().toString(36).substr(2, 9),
+      vocabId: target.id,
+      type: 'multiple-choice',
+      prompt: `Từ "${target.word}" (${target.pinyin}) có nghĩa là gì?`,
+      correctAnswer: target.meaning,
+      options,
+      level: target.level,
+      explanation: `"${target.word}" nghĩa là ${target.meaning}.`
+    };
+  }
+  
+  if (type === 'fill-in-the-blank' && target.exampleSentence) {
+    const hidden = target.word;
+    const prompt = target.exampleSentence.replace(new RegExp(hidden, 'g'), '___');
+    return {
+      id: Math.random().toString(36).substr(2, 9),
+      vocabId: target.id,
+      type: 'fill-in-the-blank',
+      prompt: prompt,
+      correctAnswer: hidden,
+      level: target.level,
+      explanation: `Câu hoàn chỉnh: "${target.exampleSentence}"`
+    };
+  }
+
+  // Fallback to simple multi-choice if no sentence or for reorder
+  const options = [target.word, ...distractors.map(d => d.word)].sort(() => 0.5 - Math.random());
+  return {
+    id: Math.random().toString(36).substr(2, 9),
+    vocabId: target.id,
+    type: 'multiple-choice',
+    prompt: `Chọn từ tiếng Trung có nghĩa là: "${target.meaning}"`,
+    correctAnswer: target.word,
+    options,
+    level: target.level,
+    explanation: `Thành công! ${target.word} = ${target.meaning}`
+  };
+}
+
+function generateLocalGrammarQuestion(pool: GrammarItem[], target: GrammarItem, type: QuestionType): QuizQuestion {
+  const distractors = pool.filter(g => g.id !== target.id).sort(() => 0.5 - Math.random()).slice(0, 3);
+  const example = target.exampleSentences[0];
+
+  if (type === 'sentence-reorder' && example) {
+    // Basic reorder logic: split by common characters or use a simple logic
+    // Since we don't have word segmentation, we'll split by chars for simplicity or space if present
+    const parts = example.includes(' ') ? example.split(' ') : example.split('');
+    return {
+      id: Math.random().toString(36).substr(2, 9),
+      grammarId: target.id,
+      type: 'sentence-reorder',
+      prompt: `Sắp xếp câu sử dụng cấu trúc: ${target.pattern}`,
+      correctAnswer: parts,
+      level: target.level,
+      explanation: `Cấu trúc "${target.title}" dùng: ${target.pattern}`
+    };
+  }
+
+  const options = [target.title, ...distractors.map(d => d.title)].sort(() => 0.5 - Math.random());
+  return {
+    id: Math.random().toString(36).substr(2, 9),
+    grammarId: target.id,
+    type: 'multiple-choice',
+    prompt: `Cấu trúc ngữ pháp nào tương ứng với mẫu: "${target.pattern}"?`,
+    correctAnswer: target.title,
+    options,
+    level: target.level,
+    explanation: `${target.title}: ${target.description}`
+  };
 }
 
 export default function QuizEngine({ vocabulary, grammar, type, mode, onFinish, onClose }: QuizEngineProps) {
@@ -68,10 +144,8 @@ export default function QuizEngine({ vocabulary, grammar, type, mode, onFinish, 
           const quizLength = mode === 'timed' ? Math.min(20, pool.length) : Math.min(5, pool.length);
           const selectedItems = [...pool].sort(() => 0.5 - Math.random()).slice(0, quizLength);
           
-          const generated = await Promise.all(
-            selectedItems.map((v, i) => 
-              generateQuestion(v, questionTypes[i % questionTypes.length])
-            )
+          const generated = selectedItems.map((v, i) => 
+            generateLocalVocabQuestion(pool, v, questionTypes[i % questionTypes.length])
           );
           setQuestions(generated);
         } else if (type === 'grammar' && grammar) {
@@ -86,10 +160,8 @@ export default function QuizEngine({ vocabulary, grammar, type, mode, onFinish, 
           const quizLength = mode === 'timed' ? Math.min(20, pool.length) : Math.min(5, pool.length);
           const selectedItems = [...pool].sort(() => 0.5 - Math.random()).slice(0, quizLength);
           
-          const generated = await Promise.all(
-            selectedItems.map((g, i) => 
-              generateGrammarQuestion(g, questionTypes[i % questionTypes.length])
-            )
+          const generated = selectedItems.map((g, i) => 
+            generateLocalGrammarQuestion(pool, g, questionTypes[i % questionTypes.length])
           );
           setQuestions(generated);
         }
