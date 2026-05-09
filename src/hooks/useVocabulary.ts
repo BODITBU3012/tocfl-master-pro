@@ -1,4 +1,18 @@
 import { useState, useEffect } from 'react';
+import { 
+  collection, 
+  onSnapshot, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  query, 
+  orderBy, 
+  writeBatch,
+  serverTimestamp,
+  Timestamp
+} from 'firebase/firestore';
+import { db } from '../firebase';
 import { VocabularyItem, ProficiencyLevel } from '../types';
 import { calculateNextReview } from '../lib/srs';
 
@@ -11,122 +25,148 @@ const STANDARD_VOCAB: Omit<VocabularyItem, 'id' | 'createdAt' | 'masteryScore' |
 ];
 
 const INITIAL_EASE = 2.5;
+const COLLECTION_NAME = 'vocabularies';
 
 export function useVocabulary() {
   const [vocabulary, setVocabulary] = useState<VocabularyItem[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem('tocfl_vocab');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Ensure missing fields are populated for migration
-        const migrated = parsed.map((v: any) => ({
-          ...v,
-          repetitionCount: v.repetitionCount ?? 0,
-          srsInterval: v.srsInterval ?? 0,
-          srsEase: v.srsEase ?? INITIAL_EASE
-        }));
-        setVocabulary(migrated);
-      } catch (e) {
-        console.error("Failed to parse vocab", e);
-      }
-    } else {
-      // Pre-populate with standard vocab if empty
-      const initial = STANDARD_VOCAB.map(v => ({
-        ...v,
-        id: Math.random().toString(36).substr(2, 9),
-        createdAt: Date.now(),
+    const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const items: VocabularyItem[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        items.push({
+          ...data,
+          id: doc.id,
+          createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : (data.createdAt || Date.now()),
+          lastReviewedAt: data.lastReviewedAt instanceof Timestamp ? data.lastReviewedAt.toMillis() : data.lastReviewedAt,
+          nextReviewAt: data.nextReviewAt instanceof Timestamp ? data.nextReviewAt.toMillis() : data.nextReviewAt,
+        } as VocabularyItem);
+      });
+      
+      setVocabulary(items);
+      setIsLoaded(true);
+    }, (error) => {
+      console.error("Firestore error:", error);
+      setIsLoaded(true);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Map vocabulary to include selection state for the UI
+  const vocabWithSelection = vocabulary.map(v => ({
+    ...v,
+    isSelected: selectedIds.has(v.id)
+  }));
+
+  const addVocab = async (item: Omit<VocabularyItem, 'id' | 'createdAt' | 'masteryScore' | 'srsInterval' | 'srsEase' | 'repetitionCount'>) => {
+    try {
+      await addDoc(collection(db, COLLECTION_NAME), {
+        ...item,
+        createdAt: serverTimestamp(),
         masteryScore: 0,
         srsInterval: 0,
         srsEase: INITIAL_EASE,
         repetitionCount: 0,
-      }));
-      setVocabulary(initial as VocabularyItem[]);
+      });
+    } catch (error) {
+      console.error("Add failed:", error);
     }
-    setIsLoaded(true);
-  }, []);
-
-  useEffect(() => {
-    if (isLoaded) {
-      try {
-        localStorage.setItem('tocfl_vocab', JSON.stringify(vocabulary));
-      } catch (error) {
-        console.error("Failed to save vocab to localStorage:", error);
-      }
-    }
-  }, [vocabulary, isLoaded]);
-
-  const addVocab = (item: Omit<VocabularyItem, 'id' | 'createdAt' | 'masteryScore' | 'srsInterval' | 'srsEase' | 'repetitionCount'>) => {
-    const newItem: VocabularyItem = {
-      ...item,
-      id: Math.random().toString(36).substr(2, 9),
-      createdAt: Date.now(),
-      masteryScore: 0,
-      srsInterval: 0,
-      srsEase: INITIAL_EASE,
-      repetitionCount: 0,
-    };
-    setVocabulary(prev => [...prev, newItem]);
   };
 
-  const addBulkVocab = (items: Omit<VocabularyItem, 'id' | 'createdAt' | 'masteryScore' | 'srsInterval' | 'srsEase' | 'repetitionCount'>[]) => {
-    const newItems: VocabularyItem[] = items.map(item => ({
-      ...item,
-      id: Math.random().toString(36).substr(2, 9),
-      createdAt: Date.now(),
-      masteryScore: 0,
-      srsInterval: 0,
-      srsEase: INITIAL_EASE,
-      repetitionCount: 0,
-    }));
-    setVocabulary(prev => [...prev, ...newItems]);
+  const addBulkVocab = async (items: Omit<VocabularyItem, 'id' | 'createdAt' | 'masteryScore' | 'srsInterval' | 'srsEase' | 'repetitionCount'>[]) => {
+    try {
+      const batch = writeBatch(db);
+      items.forEach(item => {
+        const docRef = doc(collection(db, COLLECTION_NAME));
+        batch.set(docRef, {
+          ...item,
+          createdAt: serverTimestamp(),
+          masteryScore: 0,
+          srsInterval: 0,
+          srsEase: INITIAL_EASE,
+          repetitionCount: 0,
+        });
+      });
+      await batch.commit();
+    } catch (error) {
+      console.error("Bulk add failed:", error);
+    }
   };
 
-  const removeVocab = (id: string) => {
-    setVocabulary(prev => prev.filter(v => v.id !== id));
+  const removeVocab = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, COLLECTION_NAME, id));
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    } catch (error) {
+      console.error("Remove failed:", error);
+    }
   };
 
   const toggleSelect = (id: string) => {
-    setVocabulary(prev => prev.map(v => v.id === id ? { ...v, isSelected: !v.isSelected } : v));
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   const selectAll = (selected: boolean) => {
-    setVocabulary(prev => prev.map(v => ({ ...v, isSelected: selected })));
+    if (selected) {
+      setSelectedIds(new Set(vocabulary.map(v => v.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
   };
 
   const clearSelection = () => selectAll(false);
 
-  const recordResult = (id: string, isCorrect: boolean) => {
-    setVocabulary(prev => prev.map(v => {
-      if (v.id !== id) return v;
+  const recordResult = async (id: string, isCorrect: boolean) => {
+    const item = vocabulary.find(v => v.id === id);
+    if (!item) return;
 
-      const srsData = calculateNextReview(
-        isCorrect,
-        v.srsInterval,
-        v.srsEase,
-        v.repetitionCount
-      );
+    const srsData = calculateNextReview(
+      isCorrect,
+      item.srsInterval,
+      item.srsEase,
+      item.repetitionCount
+    );
 
-      const delta = isCorrect ? 15 : -10;
-      const newMastery = Math.min(100, Math.max(0, v.masteryScore + delta));
+    const delta = isCorrect ? 15 : -10;
+    const newMastery = Math.min(100, Math.max(0, item.masteryScore + delta));
 
-      return {
-        ...v,
-        lastReviewedAt: Date.now(),
-        nextReviewAt: srsData.nextReviewAt,
+    try {
+      await updateDoc(doc(db, COLLECTION_NAME, id), {
+        lastReviewedAt: serverTimestamp(),
+        nextReviewAt: Timestamp.fromMillis(srsData.nextReviewAt),
         srsInterval: srsData.interval,
         srsEase: srsData.ease,
         repetitionCount: srsData.repetitionCount,
         masteryScore: newMastery,
-      };
-    }));
+      });
+    } catch (error) {
+      console.error("Record result failed:", error);
+    }
   };
 
-  const updateVocab = (id: string, updates: Partial<VocabularyItem>) => {
-    setVocabulary(prev => prev.map(v => v.id === id ? { ...v, ...updates } : v));
+  const updateVocab = async (id: string, updates: Partial<VocabularyItem>) => {
+    try {
+      const { id: _, isSelected: __, ...safeUpdates } = updates as any;
+      await updateDoc(doc(db, COLLECTION_NAME, id), safeUpdates);
+    } catch (error) {
+      console.error("Update failed:", error);
+    }
   };
 
-  return { vocabulary, isLoaded, addVocab, addBulkVocab, removeVocab, toggleSelect, selectAll, clearSelection, updateVocab, recordResult };
+  return { vocabulary: vocabWithSelection, isLoaded, addVocab, addBulkVocab, removeVocab, toggleSelect, selectAll, clearSelection, updateVocab, recordResult };
 }
