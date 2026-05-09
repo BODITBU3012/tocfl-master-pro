@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Timer, Trophy, AlertCircle, Volume2, Plus, Search, BookOpen, Brain, Trash2, ChevronRight, X, Sparkles, Filter, LayoutGrid, List, TrendingUp, Calendar, Loader2, FileText, Upload, Check } from 'lucide-react';
+import { Timer, Trophy, AlertCircle, Volume2, Plus, Search, BookOpen, Brain, Trash2, ChevronRight, X, Sparkles, Filter, LayoutGrid, List, TrendingUp, Calendar, Loader2, FileText, Upload, Check, Clock } from 'lucide-react';
 import { useVocabulary } from './hooks/useVocabulary';
 import { ProficiencyLevel, VocabularyItem, PracticeMode } from './types';
 import QuizEngine from './components/Quiz/QuizEngine';
@@ -91,6 +91,90 @@ export default function App() {
     return saved ? parseInt(saved, 10) : 10;
   });
   const [isConfiguringGoal, setIsConfiguringGoal] = useState(false);
+  const [goalType, setGoalType] = useState<'words' | 'time'>('words');
+  const [isActive, setIsActive] = useState(false);
+  const lastActivityRef = React.useRef(Date.now());
+
+  const [todayStudyTime, setTodayStudyTime] = useState(() => {
+    const saved = localStorage.getItem('study_time_data');
+    const data = saved ? JSON.parse(saved) : {};
+    const today = new Date().toISOString().split('T')[0];
+    return data[today] || 0;
+  });
+
+  const [studyTimeGoal, setStudyTimeGoal] = useState(() => {
+    const saved = localStorage.getItem('study_time_goal');
+    return saved ? parseInt(saved, 10) : 30; // default 30 minutes
+  });
+  const [showTimeHistory, setShowTimeHistory] = useState(false);
+
+  const getHistory = () => {
+    const saved = localStorage.getItem('study_time_data');
+    if (!saved) return [];
+    const data = JSON.parse(saved);
+    return Object.entries(data)
+      .map(([date, seconds]) => ({ date, minutes: Math.round((seconds as number) / 60) }))
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 7);
+  };
+  const history = getHistory();
+
+  useEffect(() => {
+    const handleActivity = () => {
+      lastActivityRef.current = Date.now();
+      if (!isActive) setIsActive(true);
+    };
+
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('click', handleActivity);
+    window.addEventListener('scroll', handleActivity);
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const isIdle = now - lastActivityRef.current > 60000; // 1 minute idle threshold for accuracy
+      const isVisible = document.visibilityState === 'visible';
+
+      if (!isIdle && isVisible) {
+        setIsActive(true);
+        setTodayStudyTime(prev => {
+          const newTime = prev + 1;
+          if (newTime % 5 === 0) { // Save every 5 seconds
+            const saved = localStorage.getItem('study_time_data');
+            const data = saved ? JSON.parse(saved) : {};
+            const today = new Date().toISOString().split('T')[0];
+            data[today] = newTime;
+            localStorage.setItem('study_time_data', JSON.stringify(data));
+          }
+          return newTime;
+        });
+      } else {
+        setIsActive(false);
+      }
+    }, 1000);
+
+    return () => {
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('click', handleActivity);
+      window.removeEventListener('scroll', handleActivity);
+      clearInterval(interval);
+    };
+  }, [isActive]);
+
+  useEffect(() => {
+    localStorage.setItem('study_time_goal', studyTimeGoal.toString());
+  }, [studyTimeGoal]);
+
+  const formatTime = (seconds: number) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    if (hrs > 0) return `${hrs}h ${mins}m`;
+    return `${mins}m ${secs}s`;
+  };
+
+  const timeGoalProgress = Math.min(100, Math.round((todayStudyTime / (studyTimeGoal * 60)) * 100));
 
   const reviewedToday = vocabulary.filter(item => {
     if (!item.lastReviewedAt) return false;
@@ -121,13 +205,19 @@ export default function App() {
       <nav className="border-b border-slate-900 bg-slate-950/50 backdrop-blur-xl sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 font-bold">學</div>
-            <h1 className="text-sm font-bold tracking-widest uppercase">TOCFL Master Pro</h1>
+            <div className="w-10 h-10 bg-linear-to-br from-indigo-600 to-fuchsia-600 rounded-xl flex items-center justify-center text-white shadow-xl shadow-indigo-500/20 font-black text-xl rotate-3">台</div>
+            <div>
+              <h1 className="text-base font-black tracking-tight bg-linear-to-r from-white to-slate-400 bg-clip-text text-transparent">Học tiếng Đài</h1>
+              <p className="text-[8px] text-indigo-400 font-bold uppercase tracking-widest leading-none">Taiwanese Master</p>
+            </div>
           </div>
 
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => setIsConfiguringGoal(true)}
+              onClick={() => {
+                setGoalType('words');
+                setIsConfiguringGoal(true);
+              }}
               className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs rounded-full font-medium hover:bg-emerald-500/20 transition-colors"
             >
               Daily Goal: {goalProgress}% Complete
@@ -229,33 +319,39 @@ export default function App() {
               className="relative w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl"
             >
               <h3 className="text-xl font-bold mb-2">Thiết lập mục tiêu</h3>
-              <p className="text-sm text-slate-400 mb-6">Số lượng từ vựng và ngữ pháp bạn muốn ôn tập mỗi ngày.</p>
+              <p className="text-sm text-slate-400 mb-6">
+                {goalType === 'words' ? 'Số lượng từ vựng bạn muốn ôn tập mỗi ngày.' : 'Thời gian bạn muốn dành để học mỗi ngày (phút).'}
+              </p>
               
               <div className="flex items-center justify-between mb-8">
                 <button 
-                  onClick={() => setDailyGoal(Math.max(5, dailyGoal - 5))}
+                  onClick={() => goalType === 'words' ? setDailyGoal(Math.max(5, dailyGoal - 5)) : setStudyTimeGoal(Math.max(5, studyTimeGoal - 5))}
                   className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center text-slate-100 hover:bg-slate-700 transition-colors"
                 >
                   -
                 </button>
                 <div className="text-center">
-                  <span className="text-4xl font-bold">{dailyGoal}</span>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Mục tiêu ngày</p>
+                  <span className="text-4xl font-bold">{goalType === 'words' ? dailyGoal : studyTimeGoal}</span>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
+                    {goalType === 'words' ? 'Mục tiêu ngày' : 'Phút mỗi ngày'}
+                  </p>
                 </div>
                 <button 
-                  onClick={() => setDailyGoal(dailyGoal + 5)}
+                  onClick={() => goalType === 'words' ? setDailyGoal(dailyGoal + 5) : setStudyTimeGoal(studyTimeGoal + 5)}
                   className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center text-slate-100 hover:bg-slate-700 transition-colors"
                 >
                   +
                 </button>
               </div>
 
-              <button 
-                onClick={() => setIsConfiguringGoal(false)}
-                className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-500 transition-all"
-              >
-                Xác nhận
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setIsConfiguringGoal(false)}
+                  className="flex-1 py-4 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-500 transition-all"
+                >
+                  Xác nhận
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
@@ -271,24 +367,31 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             className="md:col-span-8 bg-slate-900 border border-slate-800 rounded-3xl p-8 flex flex-col justify-between overflow-hidden relative group"
           >
+            <div className="absolute -top-24 -left-24 w-64 h-64 bg-indigo-600/10 blur-[100px] rounded-full group-hover:bg-indigo-600/20 transition-colors" />
+            <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-fuchsia-600/10 blur-[100px] rounded-full group-hover:bg-fuchsia-600/20 transition-colors" />
             <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
               <Sparkles size={120} className="text-indigo-500" />
             </div>
-            <div>
-              <h2 className="text-3xl md:text-5xl font-bold tracking-tighter mb-4">
-                Học tập <span className="text-indigo-400 underline decoration-indigo-500/30 underline-offset-8">hiệu quả</span><br />
-                với dữ liệu của bạn.
+            <div className="relative z-10">
+              <h2 className="text-4xl md:text-7xl font-black tracking-tight mb-4 leading-tight">
+                <span className="bg-linear-to-r from-indigo-400 via-fuchsia-400 to-amber-400 bg-clip-text text-transparent filter drop-shadow-[0_0_20px_rgba(165,180,252,0.3)]">
+                  App học tiếng Đài Loan
+                </span>
+                <br />
+                <span className="text-xl md:text-2xl font-medium text-indigo-300/80 tracking-normal mt-4 block italic">
+                  Chinh phục TOCFL theo cách của chính bạn.
+                </span>
               </h2>
-              <p className="text-slate-400 max-w-sm">Tổ chức kho từ vựng cá nhân, luyện tập với AI và theo dõi tiến độ thi TOCFL.</p>
+              <p className="text-slate-200/80 max-w-sm font-medium border-l-2 border-indigo-500/50 pl-4 py-1">Hãy chiến thắng bản thân của ngày hôm qua</p>
             </div>
             <div className="flex gap-4 mt-8">
               <button 
                 onClick={() => setIsSelectingMode(true)}
                 disabled={vocabulary.length < 1}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/20 flex items-center gap-2 disabled:opacity-50"
+                className="px-8 py-4 bg-linear-to-r from-indigo-600 to-fuchsia-600 text-white rounded-2xl font-black hover:scale-105 active:scale-95 transition-all shadow-xl shadow-indigo-600/25 flex items-center gap-3 disabled:opacity-50 disabled:hover:scale-100"
               >
-                <Brain size={18} />
-                Luyện tập Từ vựng {selectedVocabCount > 0 ? `(${selectedVocabCount} đã chọn)` : ''}
+                <Brain size={20} />
+                Bắt đầu học ngay
               </button>
               <div className="flex gap-2">
                 <button 
@@ -311,59 +414,73 @@ export default function App() {
 
           {/* Quick Stats Module */}
           <div className="md:col-span-4 grid grid-cols-1 gap-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between">
+            <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-3xl p-6 flex flex-col justify-between hover:border-indigo-500/30 transition-colors">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Words</span>
-                <TrendingUp size={16} className="text-indigo-400" />
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tổng vốn từ</span>
+                <div className="p-2 bg-indigo-500/10 rounded-lg">
+                  <TrendingUp size={16} className="text-indigo-400" />
+                </div>
               </div>
               <div className="mt-4">
-                <span className="text-4xl font-bold text-slate-100">{masteryStats.total}</span>
-                <p className="text-xs text-slate-500 mt-1">Sẵn sàng để ôn tập</p>
+                <span className="text-4xl font-black text-white">{masteryStats.total}</span>
+                <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-tighter font-bold">Từ vựng đã lưu</p>
               </div>
             </div>
-            <div className="bg-indigo-600 rounded-3xl p-6 flex flex-col justify-between text-white">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest">Mastery</span>
-                <Brain size={16} className="text-indigo-100" />
+            <div className="bg-linear-to-br from-indigo-600 via-indigo-500 to-fuchsia-600 rounded-3xl p-6 flex flex-col justify-between text-white shadow-xl shadow-indigo-600/20 group overflow-hidden relative">
+              <div className="absolute top-0 right-0 p-4 opacity-20 -rotate-12 group-hover:rotate-0 transition-transform">
+                <Trophy size={64} />
               </div>
-              <div className="mt-4">
-                <span className="text-4xl font-bold">{masteryStats.mastered}</span>
-                <p className="text-xs text-indigo-100 mt-1">Từ đã thành thạo ( {Math.round((masteryStats.mastered / (masteryStats.total || 1)) * 100)}% )</p>
+              <div className="flex items-center justify-between relative z-10">
+                <span className="text-[10px] font-bold text-indigo-100 uppercase tracking-widest">Độ thông thạo</span>
+                <div className="p-2 bg-white/10 rounded-lg">
+                  <Brain size={16} className="text-white" />
+                </div>
+              </div>
+              <div className="mt-4 relative z-10">
+                <span className="text-4xl font-black">{masteryStats.mastered}</span>
+                <div className="flex items-center gap-2 mt-1">
+                   <p className="text-[10px] text-indigo-100 font-bold uppercase tracking-tighter">Từ đã thuộc</p>
+                   <span className="px-1.5 py-0.5 bg-white/20 rounded-md text-[8px] font-black">{Math.round((masteryStats.mastered / (masteryStats.total || 1)) * 100)}%</span>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Daily Goal Card */}
-          <div className="md:col-span-4 bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between">
+          <div className="md:col-span-4 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-3xl p-6 flex flex-col justify-between relative overflow-hidden group">
+            <div className="absolute -right-4 -top-4 w-24 h-24 bg-emerald-500/10 blur-3xl rounded-full group-hover:bg-emerald-500/20 transition-colors" />
             <div>
-              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Daily Progress</h3>
+              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Tiến độ mục tiêu</h3>
               <div className="flex items-end justify-between mb-2">
-                <span className="text-3xl font-bold text-slate-100">{reviewedToday} <span className="text-sm text-slate-500">/ {dailyGoal}</span></span>
-                <span className="text-xs font-bold text-emerald-400">{goalProgress}%</span>
+                <span className="text-3xl font-black text-white">{reviewedToday} <span className="text-sm text-slate-500">/ {dailyGoal}</span></span>
+                <span className="text-xs font-black text-emerald-400">{goalProgress}%</span>
               </div>
-              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden shadow-inner">
                 <motion.div 
                   initial={{ width: 0 }}
                   animate={{ width: `${goalProgress}%` }}
-                  className="h-full bg-emerald-500"
+                  className="h-full bg-linear-to-r from-emerald-600 to-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.3)]"
                 />
               </div>
             </div>
             <button 
-              onClick={() => setIsConfiguringGoal(true)}
-              className="mt-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-indigo-400 transition-colors self-start"
+              onClick={() => {
+                setGoalType('words');
+                setIsConfiguringGoal(true);
+              }}
+              className="mt-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-emerald-400 transition-colors self-start"
             >
-              Adjust Daily Goal
+              Cài đặt mục tiêu
             </button>
           </div>
 
           {/* TOCFL Levels Card */}
-          <div className="md:col-span-4 bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between group overflow-hidden relative">
-            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform text-amber-500">
+          <div className="md:col-span-4 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-3xl p-6 flex flex-col justify-between group overflow-hidden relative">
+            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform text-amber-500 group-hover:opacity-10">
                <Trophy size={120} />
             </div>
             <div>
-              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Study Distribution</h3>
+              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Phân phối trình độ</h3>
               <div className="space-y-3">
                 {['A1', 'A2', 'B1'].map(level => {
                   const count = vocabulary.filter(v => v.level === level).length;
@@ -373,10 +490,10 @@ export default function App() {
                     <div key={level} className="space-y-1">
                       <div className="flex justify-between text-[10px] font-bold">
                         <span className={cn(getLevelColor(level as ProficiencyLevel))}>{level}</span>
-                        <span className="text-slate-500">{count} words ({percent}%)</span>
+                        <span className="text-slate-500 font-mono">{count} từ</span>
                       </div>
-                      <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-                        <div className={cn("h-full", getLevelColor(level as ProficiencyLevel, 'solid').replace('text-', 'bg-'))} style={{ width: `${percent}%` }} />
+                      <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div className={cn("h-full transition-all duration-1000", getLevelColor(level as ProficiencyLevel, 'solid').replace('text-', 'bg-'))} style={{ width: `${percent}%` }} />
                       </div>
                     </div>
                   );
@@ -452,6 +569,74 @@ export default function App() {
                   <p className="text-[10px] text-slate-500 line-clamp-2">{tip.desc}</p>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Daily Study Time Card */}
+          <div className="md:col-span-4 bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between relative overflow-hidden group">
+            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform text-indigo-500">
+               <Clock size={120} />
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Study Duration</h3>
+                <div className="flex items-center gap-1.5">
+                  <div className={cn("w-1.5 h-1.5 rounded-full", isActive ? "bg-emerald-500 animate-pulse" : "bg-slate-700")} />
+                  <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tighter">
+                    {isActive ? "Đang đếm" : "Tạm dừng"}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-end justify-between mb-2">
+                <span className="text-3xl font-bold text-slate-100">{formatTime(todayStudyTime)} <span className="text-sm text-slate-500">/ {studyTimeGoal}m</span></span>
+                <span className="text-xs font-bold text-indigo-400">{timeGoalProgress}%</span>
+              </div>
+              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${timeGoalProgress}%` }}
+                  className="h-full bg-indigo-500"
+                />
+              </div>
+            </div>
+            
+            <AnimatePresence>
+              {showTimeHistory && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="mt-4 border-t border-slate-800 pt-4 space-y-2 overflow-hidden"
+                >
+                  <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest mb-2">Lịch sử 7 ngày qua</p>
+                  {history.length > 0 ? history.map((item) => (
+                    <div key={item.date} className="flex justify-between items-center bg-slate-950/50 p-2 rounded-lg border border-slate-800/30">
+                      <span className="text-[10px] text-slate-400 font-mono">{item.date}</span>
+                      <span className="text-[10px] font-bold text-indigo-400">{item.minutes} phút</span>
+                    </div>
+                  )) : (
+                    <p className="text-[9px] text-slate-600 italic">Chưa có dữ liệu lịch sử.</p>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <div className="flex gap-4 mt-6">
+              <button 
+                onClick={() => {
+                  setGoalType('time');
+                  setIsConfiguringGoal(true);
+                }}
+                className="text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-indigo-400 transition-colors"
+              >
+                Set Duration Goal
+              </button>
+              <button 
+                onClick={() => setShowTimeHistory(!showTimeHistory)}
+                className="text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-indigo-400 transition-colors"
+              >
+                {showTimeHistory ? "Hide History" : "View History"}
+              </button>
             </div>
           </div>
         </div>
