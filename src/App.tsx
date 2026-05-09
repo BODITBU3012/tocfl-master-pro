@@ -38,7 +38,7 @@ export default function App() {
   const [newMeaning, setNewMeaning] = useState('');
   const [newExample, setNewExample] = useState('');
   const [newTags, setNewTags] = useState('');
-  const [newLevel, setNewLevel] = useState<ProficiencyLevel>('B1');
+  const [newLevel, setNewLevel] = useState<ProficiencyLevel>('當代1');
   const [newCategoryType, setNewCategoryType] = useState<'standard' | 'custom'>('custom');
   const [newColor, setNewColor] = useState<string | undefined>(undefined);
 
@@ -412,7 +412,7 @@ export default function App() {
 
           <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto no-scrollbar pb-2 lg:pb-0">
             <div className="flex items-center gap-1 p-1 bg-slate-950/50 border border-slate-800/50 rounded-[18px] shrink-0">
-              {['All', 'A1', 'A2', 'B1'].map((level) => (
+              {['All', '當代1', '當代2', '當代3', '當代4', '當代5', '當代6'].map((level) => (
                 <button
                   key={level}
                   onClick={() => setSelectedLevel(level as any)}
@@ -939,9 +939,9 @@ export default function App() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">TOCFL Level</label>
-                  <div className="grid grid-cols-6 gap-2">
-                    {(['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as ProficiencyLevel[]).map((level) => (
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Contemporary Chinese Level</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['當代1', '當代2', '當代3', '當代4', '當代5', '當代6'] as ProficiencyLevel[]).map((level) => (
                       <button
                         key={level}
                         type="button"
@@ -1064,7 +1064,7 @@ Hoặc dán ghi chú tiếng Trung của bạn tại đây..."
                             word: parts[0] || '',
                             pinyin: parts[1] || '',
                             meaning: parts[2] || parts[1] || '',
-                            level: 'B1' as ProficiencyLevel,
+                            level: '當代1' as ProficiencyLevel,
                             category: 'custom' as const,
                             tags: [],
                             exampleSentence: ''

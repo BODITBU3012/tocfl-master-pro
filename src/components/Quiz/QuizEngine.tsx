@@ -522,7 +522,7 @@ export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: Quiz
                     <div>
                       <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Dữ liệu phân tích</h4>
                       <p className="text-slate-300 text-sm leading-relaxed max-w-xl">
-                        {currentQuestion.explanation || "Dữ liệu chính xác. Bạn đang tiến bộ rất nhanh trong hành trình chinh phục TOCFL."}
+                        {currentQuestion.explanation || "Dữ liệu chính xác. Bạn đang tiến bộ rất nhanh trong hành trình chinh phục tiếng Trung."}
                       </p>
                     </div>
                   </div>

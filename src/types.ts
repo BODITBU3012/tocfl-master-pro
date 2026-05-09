@@ -1,4 +1,4 @@
-export type ProficiencyLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+export type ProficiencyLevel = '當代1' | '當代2' | '當代3' | '當代4' | '當代5' | '當代6';
 
 export interface VocabularyItem {
   id: string;
