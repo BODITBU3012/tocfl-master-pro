@@ -50,12 +50,16 @@ function generateLocalVocabQuestion(pool: VocabularyItem[], target: VocabularyIt
   if (type === 'fill-in-the-blank' && target.exampleSentence) {
     const hidden = target.word;
     const prompt = target.exampleSentence.replace(new RegExp(hidden, 'g'), '___');
+    const distractors = pool.filter(v => v.id !== target.id).sort(() => 0.5 - Math.random()).slice(0, 3);
+    const options = [hidden, ...distractors.map(d => d.word)].sort(() => 0.5 - Math.random());
+    
     return {
       id: Math.random().toString(36).substr(2, 9),
       vocabId: target.id,
       type: 'fill-in-the-blank',
       prompt: prompt,
       correctAnswer: hidden,
+      options,
       level: target.level,
       explanation: `Câu hoàn chỉnh: "${target.exampleSentence}"`
     };
@@ -75,7 +79,7 @@ function generateLocalVocabQuestion(pool: VocabularyItem[], target: VocabularyIt
   };
 }
 
-export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: QuizEngineProps) {
+export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClose }: QuizEngineProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [score, setScore] = useState(0);
   const [correctIds, setCorrectIds] = useState<string[]>([]);
@@ -112,6 +116,9 @@ export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: Quiz
   }, [mode, isLoading, timeLeft, isFinished]);
 
   useEffect(() => {
+    // Only prepare quiz once when vocabulary is available and questions aren't set yet
+    if (vocabulary.length === 0 || questions.length > 0) return;
+
     function prepareQuiz() {
       const questionTypes: QuestionType[] = mode === 'flashcards' ? ['flashcard'] : ['multiple-choice', 'fill-in-the-blank', 'multiple-choice'];
       
@@ -139,7 +146,7 @@ export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: Quiz
       }
     }
     prepareQuiz();
-  }, [vocabulary, mode]);
+  }, [vocabulary.length, mode, questions.length]); // Use lengths and mode to avoid re-triggering on data updates
 
   useEffect(() => {
     if (questions[currentStep]?.type === 'sentence-reorder') {
@@ -206,11 +213,11 @@ export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: Quiz
       onAnswer(current.vocabId, isCorrect);
     }
 
-    // In timed mode or flashcard mode, move faster
-    if ((mode === 'timed' || mode === 'flashcards') && isCorrect) {
+    // Only auto-next in timed mode for speed
+    if (mode === 'timed' && isCorrect) {
       setTimeout(() => {
         handleNext();
-      }, 500);
+      }, 800); // Slightly longer delay to actually see the "Correct" feedback
     }
   };
 
@@ -228,7 +235,7 @@ export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: Quiz
     onFinish(correctIds, askedIds);
   };
 
-  if (isLoading) {
+  if (isLoading || !currentQuestion) {
     return (
       <div className="fixed inset-0 bg-slate-950 z-50 flex flex-col items-center justify-center p-6 text-center">
         <motion.div 
@@ -241,8 +248,20 @@ export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: Quiz
         >
           <Brain size={64} strokeWidth={1.5} />
         </motion.div>
-        <h2 className="text-2xl font-bold text-slate-100 mb-2 font-serif italic">Đang tổng hợp dữ liệu...</h2>
-        <p className="text-slate-500 text-sm uppercase tracking-widest font-mono">Generative AI is crafting your session</p>
+        <h2 className="text-2xl font-bold text-slate-100 mb-2 font-serif italic">
+          {!currentQuestion && !isLoading ? "Không tìm thấy dữ liệu..." : "Đang tổng hợp dữ liệu..."}
+        </h2>
+        <p className="text-slate-500 text-sm uppercase tracking-widest font-mono">
+          {!currentQuestion && !isLoading ? "Vui lòng chọn từ vựng trước khi bắt đầu" : "Generative AI is crafting your session"}
+        </p>
+        {!currentQuestion && !isLoading && (
+          <button 
+            onClick={onClose}
+            className="mt-8 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-500 transition-all"
+          >
+            Quay lại
+          </button>
+        )}
       </div>
     );
   }
@@ -418,7 +437,7 @@ export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: Quiz
                 <div className="flex flex-col gap-6">
                   {!isAnswered ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {[currentQuestion.correctAnswer as string, ' 甚至 ', ' 而是 ', ' 所以 '].sort(() => 0.5 - Math.random()).map((opt, i) => (
+                      {currentQuestion.options?.map((opt, i) => (
                         <button
                           key={i}
                           onClick={() => handleAnswer(opt)}
