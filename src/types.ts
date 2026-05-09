@@ -17,28 +17,12 @@ export interface VocabularyItem {
   srsEase: number; // SM-2 ease factor
   repetitionCount: number;
   masteryScore: number; // 0 to 100
+  isSelected?: boolean;
 }
 
-export interface GrammarItem {
-  id: string;
-  title: string;
-  pattern: string;
-  description: string;
-  level: ProficiencyLevel;
-  exampleSentences: string[];
-  masteryScore: number;
-  lastReviewedAt?: number;
-  nextReviewAt?: number;
-  srsInterval: number;
-  srsEase: number;
-  repetitionCount: number;
-  tags: string[];
-  aiExplanation?: string;
-}
+export type PracticeMode = 'standard' | 'timed' | 'mistake-review' | 'flashcards';
 
-export type PracticeMode = 'standard' | 'timed' | 'mistake-review';
-
-export type QuestionType = 'multiple-choice' | 'fill-in-the-blank' | 'sentence-reorder';
+export type QuestionType = 'multiple-choice' | 'fill-in-the-blank' | 'sentence-reorder' | 'flashcard';
 
 export interface QuizQuestion {
   id: string;
@@ -48,6 +32,5 @@ export interface QuizQuestion {
   correctAnswer: string | string[]; // string for MC/FITB, array for reorder
   explanation?: string;
   vocabId?: string;
-  grammarId?: string;
   level: ProficiencyLevel;
 }

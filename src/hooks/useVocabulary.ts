@@ -88,6 +88,16 @@ export function useVocabulary() {
     setVocabulary(prev => prev.filter(v => v.id !== id));
   };
 
+  const toggleSelect = (id: string) => {
+    setVocabulary(prev => prev.map(v => v.id === id ? { ...v, isSelected: !v.isSelected } : v));
+  };
+
+  const selectAll = (selected: boolean) => {
+    setVocabulary(prev => prev.map(v => ({ ...v, isSelected: selected })));
+  };
+
+  const clearSelection = () => selectAll(false);
+
   const recordResult = (id: string, isCorrect: boolean) => {
     setVocabulary(prev => prev.map(v => {
       if (v.id !== id) return v;
@@ -114,5 +124,5 @@ export function useVocabulary() {
     }));
   };
 
-  return { vocabulary, isLoaded, addVocab, addBulkVocab, removeVocab, recordResult };
+  return { vocabulary, isLoaded, addVocab, addBulkVocab, removeVocab, toggleSelect, selectAll, clearSelection, recordResult };
 }
