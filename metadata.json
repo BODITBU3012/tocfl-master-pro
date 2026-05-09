@@ -1,0 +1,6 @@
+{
+  "name": "TOCFL Master Pro",
+  "description": "Ứng dụng luyện thi TOCFL cá nhân hóa, cho phép quản lý từ vựng và luyện tập với AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["AI-powered Quizzes", "Vocabulary Management", "TOCFL Level Tracking"]
+}

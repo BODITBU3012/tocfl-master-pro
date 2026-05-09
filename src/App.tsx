@@ -1,0 +1,1084 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Plus, Search, BookOpen, Brain, Trash2, ChevronRight, X, Sparkles, Filter, LayoutGrid, List, TrendingUp, Calendar, Loader2 } from 'lucide-react';
+import { useVocabulary } from './hooks/useVocabulary';
+import { useGrammar } from './hooks/useGrammar';
+import { ProficiencyLevel, VocabularyItem, GrammarItem, PracticeMode } from './types';
+import QuizEngine from './components/Quiz/QuizEngine';
+import { getUsageExplanation, getGrammarExplanation } from './services/geminiService';
+import { cn, getLevelColor } from './lib/utils';
+import { Timer, Trophy, AlertCircle, Volume2 } from 'lucide-react';
+import { speakChinese } from './lib/tts';
+
+export default function App() {
+  const { vocabulary, addVocab, removeVocab, recordResult, updateUsageExplanation } = useVocabulary();
+  const { grammar, updateGrammarMastery, updateGrammarExplanation, getLevelProgress, isLevelUnlocked, currentLevel, getRecommendations } = useGrammar();
+  
+  const [currentTab, setCurrentTab] = useState<'vocabulary' | 'grammar'>('vocabulary');
+  
+  const recommendations = getRecommendations();
+  const dueVocabCount = vocabulary.filter(v => (!v.nextReviewAt || v.nextReviewAt <= Date.now()) && v.masteryScore > 0).length;
+  const dueGrammarCount = grammar.filter(g => (!g.nextReviewAt || g.nextReviewAt <= Date.now()) && g.masteryScore > 0).length;
+  const totalDueCount = currentTab === 'vocabulary' ? dueVocabCount : dueGrammarCount;
+
+  const [expandedVocabId, setExpandedVocabId] = useState<string | null>(null);
+  const [expandedGrammarId, setExpandedGrammarId] = useState<string | null>(null);
+  const [isExplaining, setIsExplaining] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [isQuizMode, setIsQuizMode] = useState(false);
+  const [practiceMode, setPracticeMode] = useState<PracticeMode>('standard');
+  const [isSelectingMode, setIsSelectingMode] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedLevel, setSelectedLevel] = useState<ProficiencyLevel | 'All'>('All');
+  const [selectedCategory, setSelectedCategory] = useState<'All' | 'standard' | 'custom'>('All');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<'newest' | 'mastery' | 'alphabetical'>('newest');
+  const [showDueOnly, setShowDueOnly] = useState(false);
+
+  // Form state
+  const [newWord, setNewWord] = useState('');
+  const [newPinyin, setNewPinyin] = useState('');
+  const [newMeaning, setNewMeaning] = useState('');
+  const [newExample, setNewExample] = useState('');
+  const [newTags, setNewTags] = useState('');
+  const [newLevel, setNewLevel] = useState<ProficiencyLevel>('B1');
+  const [newCategoryType, setNewCategoryType] = useState<'standard' | 'custom'>('custom');
+
+  const allTags = Array.from(new Set(vocabulary.flatMap(v => v.tags || []) as string[])).sort();
+
+  const filteredVocab = vocabulary.filter(v => {
+    const matchesSearch = v.word.includes(searchTerm) || v.meaning.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesLevel = selectedLevel === 'All' || v.level === selectedLevel;
+    const matchesCategory = selectedCategory === 'All' || v.category === selectedCategory;
+    const matchesTags = selectedTags.length === 0 || selectedTags.every(tag => v.tags?.includes(tag));
+    const isDue = !v.nextReviewAt || v.nextReviewAt <= Date.now();
+    const matchesDue = !showDueOnly || isDue;
+    return matchesSearch && matchesLevel && matchesCategory && matchesTags && matchesDue;
+  }).sort((a, b) => {
+    if (sortBy === 'mastery') return b.masteryScore - a.masteryScore;
+    if (sortBy === 'alphabetical') return a.word.localeCompare(b.word);
+    return b.createdAt - a.createdAt;
+  });
+
+  const filteredGrammar = grammar.filter(g => {
+    const matchesSearch = g.title.toLowerCase().includes(searchTerm.toLowerCase()) || g.pattern.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesLevel = selectedLevel === 'All' || g.level === selectedLevel;
+    return matchesSearch && matchesLevel;
+  });
+
+  const handleAddSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newWord || !newMeaning) return;
+    addVocab({
+      word: newWord,
+      pinyin: newPinyin,
+      meaning: newMeaning,
+      level: newLevel,
+      exampleSentence: newExample,
+      category: newCategoryType,
+      tags: newTags.split(',').map(tag => tag.trim()).filter(Boolean),
+    });
+    setNewWord('');
+    setNewPinyin('');
+    setNewMeaning('');
+    setNewExample('');
+    setNewTags('');
+    setIsAdding(false);
+  };
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev => 
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const [dailyGoal, setDailyGoal] = useState(() => {
+    const saved = localStorage.getItem('daily_goal');
+    return saved ? parseInt(saved, 10) : 10;
+  });
+  const [isConfiguringGoal, setIsConfiguringGoal] = useState(false);
+
+  const reviewedToday = [...vocabulary, ...grammar].filter(item => {
+    if (!item.lastReviewedAt) return false;
+    const date = new Date(item.lastReviewedAt);
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear();
+  }).length;
+
+  const goalProgress = Math.min(100, Math.round((reviewedToday / dailyGoal) * 100));
+
+  useEffect(() => {
+    localStorage.setItem('daily_goal', dailyGoal.toString());
+  }, [dailyGoal]);
+
+  const masteryStats = {
+    total: vocabulary.length,
+    mastered: vocabulary.filter(v => v.masteryScore >= 80).length,
+    learning: vocabulary.filter(v => v.masteryScore > 0 && v.masteryScore < 80).length,
+    new: vocabulary.filter(v => v.masteryScore === 0).length,
+    due: vocabulary.filter(v => !v.nextReviewAt || v.nextReviewAt <= Date.now()).length
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500/30">
+      {/* Navigation */}
+      <nav className="border-b border-slate-900 bg-slate-950/50 backdrop-blur-xl sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 font-bold">學</div>
+            <h1 className="text-sm font-bold tracking-widest uppercase">TOCFL Master Pro</h1>
+          </div>
+          <div className="flex items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl mr-4">
+            {(['vocabulary', 'grammar'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setCurrentTab(tab)}
+                className={cn(
+                  "px-4 py-1.5 rounded-lg text-xs font-bold transition-all uppercase tracking-widest",
+                  currentTab === tab 
+                    ? "bg-indigo-600 text-white" 
+                    : "text-slate-500 hover:text-slate-300"
+                )}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setIsConfiguringGoal(true)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs rounded-full font-medium hover:bg-emerald-500/20 transition-colors"
+            >
+              Daily Goal: {goalProgress}% Complete
+            </button>
+            <button 
+              onClick={() => setIsSelectingMode(true)}
+              disabled={currentTab === 'vocabulary' ? vocabulary.length < 3 : grammar.length < 3}
+              className="p-2 hover:bg-slate-900 rounded-lg transition-colors text-slate-400 hover:text-indigo-400"
+            >
+              <Brain size={20} />
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Mode Selection Modal */}
+      <AnimatePresence>
+        {isSelectingMode && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsSelectingMode(false)}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-[40px] p-10 shadow-2xl"
+            >
+              <div className="text-center mb-10">
+                <h3 className="text-2xl font-bold mb-2">Chọn chế độ luyện tập</h3>
+                <p className="text-slate-400 text-sm">Nâng cao hiệu quả học tập {currentTab} với các thử thách đặc biệt.</p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                {[
+                  { id: 'standard', title: 'Tiêu chuẩn', icon: Brain, desc: '5 câu hỏi ngẫu nhiên từ kho của bạn.', color: 'text-indigo-400' },
+                  { id: 'srs', title: `Đến hạn (${totalDueCount})`, icon: Sparkles, desc: 'Ôn tập những kiến thức đã đến lúc cần ôn lại.', color: 'text-emerald-400', disabled: totalDueCount === 0 },
+                  { id: 'timed', title: 'Siêu tốc', icon: Timer, desc: 'Trả lời nhiều nhất có thể trong 60 giây.', color: 'text-amber-400' },
+                  { id: 'mistake-review', title: 'Ôn tập sai', icon: AlertCircle, desc: 'Tập trung vào các từ bạn đang yếu.', color: 'text-red-400' }
+                ].map((mode) => (
+                  <button
+                    key={mode.id}
+                    disabled={(mode as any).disabled}
+                    onClick={() => {
+                      if (mode.id === 'srs') {
+                         setShowDueOnly(true);
+                         setPracticeMode('standard');
+                      } else {
+                         setPracticeMode(mode.id as PracticeMode);
+                      }
+                      setIsSelectingMode(false);
+                      setIsQuizMode(true);
+                    }}
+                    className={cn(
+                      "flex flex-col items-center p-6 bg-slate-950 border border-slate-800 rounded-3xl transition-all text-center group",
+                      (mode as any).disabled 
+                        ? "opacity-50 cursor-not-allowed" 
+                        : "hover:border-indigo-500/50 hover:bg-slate-800/20 shadow-hover group"
+                    )}
+                  >
+                    <mode.icon className={cn("mb-4 group-hover:scale-110 transition-transform", mode.color)} size={32} />
+                    <h4 className="font-bold text-sm mb-2">{mode.title}</h4>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">{mode.desc}</p>
+                  </button>
+                ))}
+              </div>
+
+              <button 
+                onClick={() => setIsSelectingMode(false)}
+                className="w-full py-4 text-slate-500 font-bold hover:text-slate-100 transition-colors"
+              >
+                Hủy bỏ
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Goal Configuration Modal */}
+      <AnimatePresence>
+        {isConfiguringGoal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsConfiguringGoal(false)}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl"
+            >
+              <h3 className="text-xl font-bold mb-2">Thiết lập mục tiêu</h3>
+              <p className="text-sm text-slate-400 mb-6">Số lượng từ vựng và ngữ pháp bạn muốn ôn tập mỗi ngày.</p>
+              
+              <div className="flex items-center justify-between mb-8">
+                <button 
+                  onClick={() => setDailyGoal(Math.max(5, dailyGoal - 5))}
+                  className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center text-slate-100 hover:bg-slate-700 transition-colors"
+                >
+                  -
+                </button>
+                <div className="text-center">
+                  <span className="text-4xl font-bold">{dailyGoal}</span>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Mục tiêu ngày</p>
+                </div>
+                <button 
+                  onClick={() => setDailyGoal(dailyGoal + 5)}
+                  className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center text-slate-100 hover:bg-slate-700 transition-colors"
+                >
+                  +
+                </button>
+              </div>
+
+              <button 
+                onClick={() => setIsConfiguringGoal(false)}
+                className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-500 transition-all"
+              >
+                Xác nhận
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* Bento Dashboard Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-12">
+          
+          {/* Welcome Card */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="md:col-span-8 bg-slate-900 border border-slate-800 rounded-3xl p-8 flex flex-col justify-between overflow-hidden relative group"
+          >
+            <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
+              <Sparkles size={120} className="text-indigo-500" />
+            </div>
+            <div>
+              <h2 className="text-3xl md:text-5xl font-bold tracking-tighter mb-4">
+                Học tập <span className="text-indigo-400 underline decoration-indigo-500/30 underline-offset-8">hiệu quả</span><br />
+                với dữ liệu của bạn.
+              </h2>
+              <p className="text-slate-400 max-w-sm">Tổ chức kho từ vựng cá nhân, luyện tập với AI và theo dõi tiến độ thi TOCFL.</p>
+            </div>
+            <div className="flex gap-4 mt-8">
+              <button 
+                onClick={() => setIsSelectingMode(true)}
+                disabled={currentTab === 'vocabulary' ? vocabulary.length < 3 : grammar.length < 3}
+                className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/20 flex items-center gap-2 disabled:opacity-50"
+              >
+                <Brain size={18} />
+                Luyện tập {currentTab}
+              </button>
+              {currentTab === 'vocabulary' && (
+                <button 
+                  onClick={() => setIsAdding(true)}
+                  className="px-6 py-3 bg-slate-800 text-slate-100 rounded-xl font-bold hover:bg-slate-700 transition-all flex items-center gap-2 border border-slate-700"
+                >
+                  <Plus size={18} />
+                  Thêm từ mới
+                </button>
+              )}
+            </div>
+          </motion.div>
+
+          {/* Quick Stats Module */}
+          <div className="md:col-span-4 grid grid-cols-1 gap-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Words</span>
+                <TrendingUp size={16} className="text-indigo-400" />
+              </div>
+              <div className="mt-4">
+                <span className="text-4xl font-bold text-slate-100">{masteryStats.total}</span>
+                <p className="text-xs text-slate-500 mt-1">Sẵn sàng để ôn tập</p>
+              </div>
+            </div>
+            <div className="bg-indigo-600 rounded-3xl p-6 flex flex-col justify-between text-white">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest">Mastery</span>
+                <Brain size={16} className="text-indigo-100" />
+              </div>
+              <div className="mt-4">
+                <span className="text-4xl font-bold">{masteryStats.mastered}</span>
+                <p className="text-xs text-indigo-100 mt-1">Từ đã thành thạo ( {Math.round((masteryStats.mastered / (masteryStats.total || 1)) * 100)}% )</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Daily Goal Card */}
+          <div className="md:col-span-4 bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between">
+            <div>
+              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Daily Progress</h3>
+              <div className="flex items-end justify-between mb-2">
+                <span className="text-3xl font-bold text-slate-100">{reviewedToday} <span className="text-sm text-slate-500">/ {dailyGoal}</span></span>
+                <span className="text-xs font-bold text-emerald-400">{goalProgress}%</span>
+              </div>
+              <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${goalProgress}%` }}
+                  className="h-full bg-emerald-500"
+                />
+              </div>
+            </div>
+            <button 
+              onClick={() => setIsConfiguringGoal(true)}
+              className="mt-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-indigo-400 transition-colors self-start"
+            >
+              Adjust Daily Goal
+            </button>
+          </div>
+
+          {/* Grammar Progression Card */}
+          <div className="md:col-span-4 bg-slate-900 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between group overflow-hidden relative">
+            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform">
+              <Trophy size={120} className="text-amber-500" />
+            </div>
+            <div>
+              <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Grammar Journey</h3>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-3 py-1 rounded-lg font-bold text-lg">
+                  {currentLevel}
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Current Rank</p>
+                  <p className="text-xs text-slate-300">Level Progress: {getLevelProgress(currentLevel)}%</p>
+                </div>
+              </div>
+              <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden mb-2">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${getLevelProgress(currentLevel)}%` }}
+                  className="h-full bg-indigo-500"
+                />
+              </div>
+              <p className="text-[9px] text-slate-500 font-medium">
+                Reach 80% to unlock next level. {getLevelProgress(currentLevel) >= 80 ? 'Level Unlocked!' : `${80 - getLevelProgress(currentLevel)}% more to go.`}
+              </p>
+            </div>
+          </div>
+
+          {/* Activity Heatmap Mockup / Status */}
+          <div className="md:col-span-4 bg-slate-900 border border-slate-800 rounded-3xl p-6">
+            <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Activity</h3>
+            <div className="grid grid-cols-7 gap-1.5">
+              {Array.from({ length: 28 }).map((_, i) => (
+                <div 
+                  key={i} 
+                  className={cn(
+                    "aspect-square rounded-sm",
+                    i % 4 === 0 ? "bg-indigo-500" : 
+                    i % 3 === 0 ? "bg-indigo-900/60" : 
+                    i % 5 === 0 ? "bg-indigo-700" : "bg-slate-800/50"
+                  )}
+                />
+              ))}
+            </div>
+            <div className="mt-6 flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
+              <span>Less</span>
+              <div className="flex gap-1.5">
+                <div className="w-2 h-2 bg-slate-800/50 rounded-sm" />
+                <div className="w-2 h-2 bg-indigo-900/60 rounded-sm" />
+                <div className="w-2 h-2 bg-indigo-700 rounded-sm" />
+                <div className="w-2 h-2 bg-indigo-500 rounded-sm" />
+              </div>
+              <span>More</span>
+            </div>
+          </div>
+
+          {/* Next to Review Spotlight */}
+          <div className="md:col-span-4 bg-slate-900 border border-slate-800 rounded-3xl p-6 relative overflow-hidden group">
+            <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:scale-110 transition-transform">
+              <Calendar size={120} />
+            </div>
+            <h3 className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-4">SRS Status</h3>
+            <div className="flex flex-col h-full">
+              <div className="flex-1">
+                <span className="text-4xl font-bold text-slate-100">{masteryStats.due}</span>
+                <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider font-bold">Words due for review</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowDueOnly(true);
+                  setIsQuizMode(true);
+                }}
+                disabled={masteryStats.due === 0}
+                className="mt-4 px-4 py-2 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-bold rounded-lg uppercase tracking-widest hover:bg-amber-500 hover:text-slate-900 transition-all disabled:opacity-30 self-start"
+              >
+                Review Due Session
+              </button>
+            </div>
+          </div>
+
+          {/* Smart Recommendations */}
+          <div className="md:col-span-4 bg-slate-900 border border-slate-800 rounded-3xl p-6 relative overflow-hidden group">
+            <h3 className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+              <Sparkles size={14} /> Smart Recommendations
+            </h3>
+            <div className="space-y-4">
+              {recommendations.length > 0 ? recommendations.map(rec => (
+                <div key={rec.id} className="flex flex-col gap-1 p-3 bg-slate-950 border border-slate-800/50 rounded-xl hover:border-indigo-500/30 transition-all cursor-default">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-200">{rec.title}</span>
+                    <span className={cn(
+                      "text-[8px] font-bold px-1.5 py-0.5 rounded uppercase border",
+                      getLevelColor(rec.level)
+                    )}>
+                      {rec.level}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 line-clamp-1">{rec.pattern}</p>
+                </div>
+              )) : (
+                <div className="py-4 text-center">
+                  <p className="text-[11px] text-slate-500 italic">No recommendations found. Keep studying!</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Toolbar & List Header */}
+        <div className="flex flex-col md:flex-row items-center gap-4 mb-6 pt-4 border-t border-slate-900">
+           <div className="relative flex-1 w-full group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors" size={18} />
+            <input 
+              type="text"
+              placeholder="Search library..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 bg-slate-900 border border-slate-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-sm"
+            />
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl">
+            {currentTab === 'vocabulary' && (
+              <>
+                <button
+                  onClick={() => setShowDueOnly(!showDueOnly)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2",
+                    showDueOnly 
+                      ? "bg-amber-500 text-slate-950 shadow-[0_0_10px_rgba(245,158,11,0.3)]" 
+                      : "text-slate-500 hover:text-slate-300"
+                  )}
+                >
+                  <Calendar size={12} />
+                  Due ({masteryStats.due})
+                </button>
+                <div className="w-[1px] h-4 bg-slate-800 mx-1" />
+                {(['All', 'standard', 'custom'] as const).map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap",
+                      selectedCategory === cat 
+                        ? "bg-slate-800 text-indigo-400 border border-indigo-500/30" 
+                        : "text-slate-500 hover:text-slate-300"
+                    )}
+                  >
+                    {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                  </button>
+                ))}
+                <div className="w-[1px] h-4 bg-slate-800 mx-1" />
+                <div className="flex items-center gap-1 ml-1 px-1">
+                  <TrendingUp size={12} className="text-slate-600" />
+                  {(['newest', 'mastery', 'alphabetical'] as const).map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setSortBy(s)}
+                      className={cn(
+                        "px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all",
+                        sortBy === s ? "text-indigo-400 bg-indigo-500/10" : "text-slate-600 hover:text-slate-400"
+                      )}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            {currentTab === 'grammar' && (
+              <div className="px-3 py-1.5 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                Grammar Points
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl overflow-x-auto no-scrollbar max-w-full">
+            {['All', 'A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map((level) => {
+              const isLocked = level !== 'All' && !isLevelUnlocked(level as ProficiencyLevel);
+              return (
+                <button
+                  key={level}
+                  disabled={isLocked}
+                  onClick={() => setSelectedLevel(level as any)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 border",
+                    selectedLevel === level 
+                      ? (isLocked ? "bg-slate-800 text-slate-600 border-slate-700" : cn("text-white shadow-[0_0_15px_rgba(99,102,241,0.4)]", getLevelColor(level, 'solid'))) 
+                      : (isLocked ? "text-slate-700 cursor-not-allowed border-transparent" : "text-slate-500 hover:text-slate-300 border-transparent")
+                  )}
+                >
+                  {level}
+                  {isLocked && <X size={10} className="text-slate-700" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {allTags.length > 0 && currentTab === 'vocabulary' && (
+          <div className="flex flex-wrap gap-2 mb-6">
+            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest pt-1.5 mr-2">Tags:</span>
+            {allTags.map(tag => (
+              <button
+                key={tag}
+                onClick={() => toggleTag(tag)}
+                className={cn(
+                  "px-2.5 py-1 rounded-full text-[10px] font-medium transition-all flex items-center gap-1.5",
+                  selectedTags.includes(tag)
+                    ? "bg-indigo-500 text-white shadow-[0_0_10px_rgba(99,102,241,0.3)]"
+                    : "bg-slate-900 text-slate-500 hover:text-slate-300 border border-slate-800"
+                )}
+              >
+                {tag}
+                {selectedTags.includes(tag) && <X size={10} />}
+              </button>
+            ))}
+            {selectedTags.length > 0 && (
+              <button 
+                onClick={() => setSelectedTags([])}
+                className="text-[9px] font-bold text-slate-600 hover:text-indigo-400 uppercase tracking-widest ml-2"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* List Content */}
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <AnimatePresence mode="popLayout">
+            {currentTab === 'vocabulary' ? filteredVocab.map((item) => (
+              <motion.div
+                layout
+                key={item.id}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="group bg-slate-900 border border-slate-800/50 rounded-2xl p-5 hover:border-indigo-500/30 hover:bg-slate-800/30 transition-all"
+              >
+                {/* ... vocab card content (omitted for brevity in this specific chunk if I targets exactly the right lines) ... */}
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex flex-col gap-1">
+                    <span className={cn(
+                      "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest self-start border",
+                      getLevelColor(item.level)
+                    )}>
+                      {item.level}
+                    </span>
+                    {item.nextReviewAt && (
+                      <span className="text-[8px] text-slate-500 font-bold uppercase tracking-tight">
+                        Next: {new Date(item.nextReviewAt).toLocaleDateString()}
+                      </span>
+                    )}
+                    {item.tags && item.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {item.tags.map(tag => (
+                          <button
+                            key={tag}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleTag(tag);
+                            }}
+                            className={cn(
+                              "px-1.5 py-0.5 rounded-[4px] text-[8px] font-bold uppercase tracking-tighter transition-all",
+                              selectedTags.includes(tag)
+                                ? "bg-indigo-500 text-white"
+                                : "bg-slate-800 text-slate-500 hover:text-slate-300"
+                            )}
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <button 
+                    onClick={() => removeVocab(item.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-600 hover:text-red-400 transition-all"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                
+                <div className="mb-4">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-2xl font-bold font-serif text-slate-100">{item.word}</h3>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        speakChinese(item.word);
+                      }}
+                      className="p-1 rounded-full bg-slate-800 text-slate-400 hover:text-indigo-400 hover:bg-slate-700 transition-all"
+                      title="Listen"
+                    >
+                      <Volume2 size={12} />
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-500 font-mono tracking-wider tabular-nums uppercase mt-0.5">{item.pinyin}</p>
+                </div>
+
+                <p className="text-xs text-slate-400 font-medium mb-4 line-clamp-2 min-h-[32px]">
+                  {item.meaning}
+                </p>
+
+                {/* Usage Explanation Section */}
+                <div className="mb-4">
+                  <AnimatePresence>
+                    {expandedVocabId === item.id && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="pt-2 pb-4 border-t border-slate-800/50 mt-2">
+                          <h4 className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                            <Sparkles size={10} /> AI Usage Analysis
+                          </h4>
+                          {item.usageExplanation ? (
+                            <p className="text-[11px] text-slate-300 leading-relaxed italic">
+                              "{item.usageExplanation}"
+                            </p>
+                          ) : (
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (isExplaining) return;
+                                setIsExplaining(true);
+                                try {
+                                  const explanation = await getUsageExplanation(item);
+                                  updateUsageExplanation(item.id, explanation);
+                                } finally {
+                                  setIsExplaining(false);
+                                }
+                              }}
+                              className="text-[10px] font-bold text-slate-500 hover:text-indigo-400 flex items-center gap-1 py-1"
+                            >
+                              {isExplaining ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                              Generate AI Explanation
+                            </button>
+                          )}
+                          {item.exampleSentence && (
+                            <div className="mt-3 py-2 px-3 bg-slate-950 rounded-lg border border-slate-800/50">
+                              <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Example</p>
+                              <p className="text-xs text-slate-200 font-serif italic">{item.exampleSentence}</p>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  
+                  <button 
+                    onClick={() => setExpandedVocabId(expandedVocabId === item.id ? null : item.id)}
+                    className="w-full text-center text-[9px] font-bold text-slate-600 hover:text-slate-400 uppercase tracking-[0.2em] py-1 border-y border-transparent hover:border-slate-800/50 transition-all"
+                  >
+                    {expandedVocabId === item.id ? "Show Less" : "Details & AI Usage"}
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 pt-2">
+                  <div className="flex-1 h-1 bg-slate-800 rounded-full overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${item.masteryScore}%` }}
+                      className={cn(
+                        "h-full transition-colors duration-500",
+                        item.masteryScore >= 80 ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" : 
+                        item.masteryScore >= 40 ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]" : 
+                        "bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.4)]"
+                      )}
+                    />
+                  </div>
+                  <span className="text-[10px] font-mono font-bold text-slate-500 tabular-nums">
+                    {item.masteryScore}%
+                  </span>
+                </div>
+              </motion.div>
+            )) : filteredGrammar.map((item) => (
+              <motion.div
+                layout
+                key={item.id}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="group bg-slate-900 border border-slate-800/50 rounded-2xl p-5 hover:border-indigo-500/30 hover:bg-slate-800/30 transition-all relative overflow-hidden"
+              >
+                <div className="flex items-start justify-between mb-3 relative z-10">
+                  <div className="flex gap-2">
+                    <div className="flex flex-col gap-1">
+                      <span className={cn(
+                        "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest border",
+                        getLevelColor(item.level)
+                      )}>
+                        {item.level}
+                      </span>
+                      {item.tags && item.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {item.tags.map(tag => (
+                            <span key={tag} className="text-[7px] font-bold text-slate-500 uppercase tracking-tight bg-slate-800/50 px-1 rounded-sm">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button 
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setExpandedGrammarId(prev => prev === item.id ? null : item.id);
+                        if (!item.aiExplanation && !isExplaining) {
+                          setIsExplaining(true);
+                          try {
+                            const explanation = await getGrammarExplanation(item);
+                            updateGrammarExplanation(item.id, explanation);
+                          } finally {
+                            setIsExplaining(false);
+                          }
+                        }
+                      }}
+                      className={cn(
+                        "p-1.5 rounded-lg transition-all border shrink-0 h-fit",
+                        item.aiExplanation 
+                          ? "bg-indigo-500/10 border-indigo-500/20 text-indigo-400" 
+                          : "bg-slate-800 border-transparent hover:border-indigo-500/30 text-slate-400 hover:text-indigo-400"
+                      )}
+                      title="AI Deep Analysis"
+                    >
+                      {isExplaining && expandedGrammarId === item.id ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <Sparkles size={12} />
+                      )}
+                    </button>
+                  </div>
+                  {item.masteryScore >= 80 && (
+                    <Trophy size={14} className="text-amber-400" />
+                  )}
+                </div>
+                
+                <div className="mb-4 relative z-10">
+                  <h3 className="text-xl font-bold font-serif text-slate-100">{item.title}</h3>
+                  <p className="text-[10px] text-indigo-400 font-mono tracking-wider items-center flex gap-1 mt-1">
+                    <Filter size={10} /> {item.pattern}
+                  </p>
+                </div>
+
+                <p className="text-xs text-slate-400 font-medium mb-4 line-clamp-3 min-h-[48px] relative z-10">
+                  {item.description}
+                </p>
+
+                {/* Grammar Expansion Section */}
+                <div className="mb-4 relative z-10">
+                  <AnimatePresence>
+                    {expandedGrammarId === item.id && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="pt-2 pb-4 border-t border-slate-800/50 mt-2">
+                          <h4 className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                            <Sparkles size={10} /> AI Grammar Analysis
+                          </h4>
+                          {item.aiExplanation ? (
+                            <div className="text-[11px] text-slate-300 leading-relaxed italic whitespace-pre-wrap">
+                              {item.aiExplanation}
+                            </div>
+                          ) : (
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (isExplaining) return;
+                                setIsExplaining(true);
+                                try {
+                                  const explanation = await getGrammarExplanation(item);
+                                  updateGrammarExplanation(item.id, explanation);
+                                } finally {
+                                  setIsExplaining(false);
+                                }
+                              }}
+                              className="text-[10px] font-bold text-slate-500 hover:text-indigo-400 flex items-center gap-1 py-1"
+                            >
+                              {isExplaining ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                              Generate AI Deep Analysis
+                            </button>
+                          )}
+                          <div className="mt-4 space-y-2">
+                            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Examples</p>
+                            {item.exampleSentences.map((s, i) => (
+                              <div key={i} className="p-2 bg-slate-950 rounded-lg border border-slate-800/50">
+                                <p className="text-xs text-slate-200 font-serif italic">{s}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  
+                  <button 
+                    onClick={() => setExpandedGrammarId(expandedGrammarId === item.id ? null : item.id)}
+                    className="w-full text-center text-[9px] font-bold text-slate-600 hover:text-slate-400 uppercase tracking-[0.2em] py-1 border-y border-transparent hover:border-slate-800/50 transition-all"
+                  >
+                    {expandedGrammarId === item.id ? "Show Less" : "Details & AI Analysis"}
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 pt-4 relative z-10">
+                  <div className="flex-1 h-1 bg-slate-800 rounded-full overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${item.masteryScore}%` }}
+                      className={cn(
+                        "h-full transition-colors duration-500",
+                        item.masteryScore >= 80 ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" : 
+                        item.masteryScore >= 40 ? "bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.4)]" :
+                        "bg-slate-700"
+                      )}
+                    />
+                  </div>
+                  <span className="text-[9px] font-mono font-bold text-slate-500 uppercase">
+                    {item.masteryScore}%
+                  </span>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+
+          {/* Empty State */}
+          {((currentTab === 'vocabulary' && filteredVocab.length === 0) || (currentTab === 'grammar' && filteredGrammar.length === 0)) && (
+            <div className="col-span-full py-20 text-center flex flex-col items-center border border-dashed border-slate-800 rounded-3xl">
+              <BookOpen className="text-slate-700 mb-4" size={40} />
+              <p className="text-slate-500 text-sm">Chưa có dữ liệu phù hợp.</p>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* Add Modal */}
+      <AnimatePresence>
+        {isAdding && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAdding(false)}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-[32px] p-8 shadow-2xl overflow-hidden"
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-100">新增詞彙</h3>
+                  <p className="text-xs text-slate-500 uppercase tracking-widest mt-1">Add word to library</p>
+                </div>
+                <button onClick={() => setIsAdding(false)} className="p-2 hover:bg-slate-800 rounded-full text-slate-500 transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleAddSubmit} className="space-y-5">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-1">
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Word (Hanzi)</label>
+                    <input 
+                      autoFocus
+                      required
+                      type="text"
+                      value={newWord}
+                      onChange={(e) => setNewWord(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm"
+                      placeholder="學習"
+                    />
+                  </div>
+                  <div className="col-span-1">
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Pinyin</label>
+                    <input 
+                      type="text"
+                      value={newPinyin}
+                      onChange={(e) => setNewPinyin(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm"
+                      placeholder="xué xí"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Meaning / Notes</label>
+                  <input 
+                    required
+                    type="text"
+                    value={newMeaning}
+                    onChange={(e) => setNewMeaning(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm"
+                    placeholder="To study; learning"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Example Sentence (Optional)</label>
+                  <textarea 
+                    value={newExample}
+                    onChange={(e) => setNewExample(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm min-h-[80px]"
+                    placeholder="VD: 我很喜歡學習漢語。"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Category</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['standard', 'custom'] as const).map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setNewCategoryType(cat)}
+                        className={cn(
+                          "py-2.5 rounded-lg text-xs font-bold transition-all border",
+                          newCategoryType === cat 
+                            ? "bg-slate-800 border-indigo-500 text-indigo-400" 
+                            : "bg-slate-950 border-slate-800 text-slate-500 hover:border-indigo-500/50"
+                        )}
+                      >
+                        {cat.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">TOCFL Level</label>
+                  <div className="grid grid-cols-6 gap-2">
+                    {(['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as ProficiencyLevel[]).map((level) => (
+                      <button
+                        key={level}
+                        type="button"
+                        onClick={() => setNewLevel(level)}
+                        className={cn(
+                          "py-2.5 rounded-lg text-xs font-bold transition-all border",
+                          newLevel === level 
+                            ? "bg-indigo-600 border-indigo-500 text-white" 
+                            : "bg-slate-950 border-slate-800 text-slate-500 hover:border-indigo-500/50"
+                        )}
+                      >
+                        {level}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Tags (comma separated)</label>
+                  <input 
+                    type="text"
+                    placeholder="e.g. food, travel, work"
+                    value={newTags}
+                    onChange={(e) => setNewTags(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm"
+                  />
+                </div>
+
+                <button 
+                  type="submit"
+                  className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-xl shadow-indigo-600/20 hover:bg-indigo-500 hover:-translate-y-0.5 transition-all mt-4"
+                >
+                  Save to Library
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Quiz Modal */}
+      {isQuizMode && (
+        <QuizEngine 
+          type={currentTab}
+          mode={practiceMode}
+          vocabulary={currentTab === 'vocabulary' ? (showDueOnly ? vocabulary.filter(v => !v.nextReviewAt || v.nextReviewAt <= Date.now()) : (filteredVocab.length >= 3 ? filteredVocab : (vocabulary.length >= 3 ? vocabulary : []))) : undefined}
+          grammar={currentTab === 'grammar' ? (showDueOnly ? grammar.filter(g => !g.nextReviewAt || g.nextReviewAt <= Date.now()) : (filteredGrammar.length >= 3 ? filteredGrammar : (grammar.length >= 2 ? grammar : []))) : undefined}
+          onClose={() => {
+            setIsQuizMode(false);
+            setShowDueOnly(false);
+          }}
+          onFinish={(correctIds, totalQuestions) => {
+            if (currentTab === 'vocabulary') {
+              const quizVocab = showDueOnly ? vocabulary.filter(v => (!v.nextReviewAt || v.nextReviewAt <= Date.now()) && v.masteryScore > 0) : (filteredVocab.length >= 3 ? filteredVocab : vocabulary);
+              quizVocab.forEach(v => {
+                const isCorrect = correctIds.includes(v.id);
+                recordResult(v.id, isCorrect);
+              });
+            } else {
+              const quizGrammar = showDueOnly ? grammar.filter(g => (!g.nextReviewAt || g.nextReviewAt <= Date.now()) && g.masteryScore > 0) : (filteredGrammar.length >= 3 ? filteredGrammar : grammar);
+              quizGrammar.forEach(g => {
+                const isCorrect = correctIds.includes(g.id);
+                updateGrammarMastery(g.id, isCorrect);
+              });
+            }
+
+            setIsQuizMode(false);
+            setShowDueOnly(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
