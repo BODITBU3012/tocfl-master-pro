@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Check, X, ArrowRight, Brain, Volume2, Timer, Sparkles } from 'lucide-react';
+import { Check, X, ArrowRight, Brain, Volume2, Timer, Sparkles, AlertCircle, Trophy } from 'lucide-react';
 import { VocabularyItem, QuizQuestion, QuestionType, PracticeMode } from '../../types';
 import { cn, getLevelColor } from '../../lib/utils';
 import { speakChinese } from '../../lib/tts';
+import { Flashcard } from '../Flashcard';
 import Confetti from 'react-confetti';
 
 interface QuizEngineProps {
   vocabulary: VocabularyItem[];
   type: 'vocabulary';
   mode: PracticeMode;
+  onAnswer?: (id: string, isCorrect: boolean) => void;
   onFinish: (correctIds: string[], askedIds: string[]) => void;
   onClose: () => void;
 }
@@ -24,8 +26,9 @@ function generateLocalVocabQuestion(pool: VocabularyItem[], target: VocabularyIt
       vocabId: target.id,
       type: 'flashcard',
       prompt: target.word,
+      pinyin: target.pinyin,
       correctAnswer: target.meaning,
-      explanation: `${target.pinyin} - ${target.exampleSentence || ''}`,
+      explanation: target.exampleSentence || 'Thêm ví dụ cho từ này để học hiệu quả hơn!',
       level: target.level
     };
   }
@@ -174,7 +177,6 @@ export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: Quiz
     if (isAnswered) return;
     
     setSelectedAnswer(answer);
-    setIsAnswered(true);
     
     const current = questions[currentStep];
     let isCorrect = false;
@@ -191,11 +193,17 @@ export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: Quiz
       isCorrect = answer === current.correctAnswer;
     }
 
+    setIsAnswered(true);
+
     if (isCorrect) {
       setScore(s => s + 1);
       if (current.vocabId) {
         setCorrectIds(prev => [...prev, current.vocabId as string]);
       }
+    }
+
+    if (current.vocabId && onAnswer) {
+      onAnswer(current.vocabId, isCorrect);
     }
 
     // In timed mode or flashcard mode, move faster
@@ -435,89 +443,55 @@ export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: Quiz
               {/* Flashcard */}
               {currentQuestion.type === 'flashcard' && (
                 <div className="flex flex-col items-center justify-center min-h-[350px] md:min-h-[450px]">
-                  <motion.div
-                    animate={{ rotateY: isFlipped ? 180 : 0 }}
-                    transition={{ duration: 0.6, type: 'spring', stiffness: 260, damping: 20 }}
-                    onClick={() => setIsFlipped(!isFlipped)}
-                    className="relative w-full aspect-[4/3] max-w-sm cursor-pointer [perspective:1000px] group mb-8"
-                  >
-                    <div className={cn(
-                      "absolute inset-0 w-full h-full rounded-[40px] border-2 border-slate-800 bg-slate-950 flex flex-col items-center justify-center p-10 backface-hidden transition-all duration-500 shadow-2xl overflow-hidden",
-                      isFlipped ? "[transform:rotateY(180deg)] opacity-0 pointer-events-none" : "group-hover:border-indigo-500/50 group-hover:bg-slate-900/50"
-                    )}>
-                      <div className="absolute top-6 left-6 opacity-10">
-                        <Brain size={40} />
-                      </div>
-                      <h2 className="text-6xl md:text-8xl font-bold font-serif text-slate-100 mb-6 drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">
-                        {currentQuestion.prompt}
-                      </h2>
-                      <div className="mt-4 flex flex-col items-center gap-2">
-                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em] animate-pulse">Nhấn để lật</p>
-                        <span className="px-2 py-0.5 bg-slate-900 text-[8px] text-slate-600 rounded font-mono border border-slate-800">SPACE</span>
-                      </div>
-                    </div>
+                  <div className="w-full max-w-sm mb-12">
+                    <Flashcard 
+                      word={currentQuestion.prompt}
+                      pinyin={currentQuestion.pinyin || ''}
+                      meaning={currentQuestion.correctAnswer as string}
+                      isFlipped={isFlipped}
+                      onFlip={setIsFlipped}
+                    />
+                  </div>
 
-                    <div className={cn(
-                      "absolute inset-0 w-full h-full rounded-[40px] border-2 border-indigo-500/30 bg-slate-900 flex flex-col items-center justify-center p-10 backface-hidden transition-all duration-500 shadow-2xl [transform:rotateY(180deg)]",
-                      !isFlipped ? "opacity-0 pointer-events-none" : "opacity-100"
-                    )}>
-                      <div className="w-full h-full flex flex-col items-center justify-center text-center">
-                        <div className="mb-2">
-                           <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 text-[9px] font-bold tracking-widest rounded uppercase border border-indigo-500/20">NGHĨA</span>
-                        </div>
-                        <h3 className="text-3xl md:text-5xl font-bold text-white mb-6 leading-tight">{currentQuestion.correctAnswer}</h3>
-                        
-                        <div className="w-full max-w-xs h-[1px] bg-linear-to-r from-transparent via-slate-700 to-transparent mb-6" />
-                        
-                        <div className="space-y-4 w-full">
-                          <p className="text-slate-300 italic text-sm md:text-base leading-relaxed line-clamp-3 px-4">
-                            {currentQuestion.explanation}
-                          </p>
-                          
-                          {!isAnswered && (
-                            <div className="flex gap-3 justify-center pt-4">
-                              <div className="flex flex-col gap-1.5 items-center">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleAnswer("wrong");
-                                  }}
-                                  className="px-6 py-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl font-bold hover:bg-red-500 hover:text-white transition-all text-xs"
-                                >
-                                  Chưa nhớ
-                                </button>
-                                <span className="text-[8px] font-mono text-slate-600 border border-slate-800 px-1 rounded">1</span>
-                              </div>
-                              <div className="flex flex-col gap-1.5 items-center">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleAnswer("correct");
-                                  }}
-                                  className="px-6 py-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl font-bold hover:bg-emerald-500 hover:text-white transition-all text-xs"
-                                >
-                                  Đã nhớ
-                                </button>
-                                <span className="text-[8px] font-mono text-slate-600 border border-slate-800 px-1 rounded">2</span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                  {!isAnswered && (
+                    <div className="flex gap-4 justify-center">
+                      <div className="flex flex-col gap-1.5 items-center">
+                        <button
+                          onClick={() => handleAnswer("wrong")}
+                          className="px-8 py-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl font-bold hover:bg-red-500 hover:text-white transition-all shadow-lg shadow-red-500/10"
+                        >
+                          Chưa nhớ
+                        </button>
+                        <span className="text-[10px] font-mono text-slate-600 border border-slate-800 px-1.5 rounded bg-slate-900">PHÍM 1</span>
+                      </div>
+                      <div className="flex flex-col gap-1.5 items-center">
+                        <button
+                          onClick={() => handleAnswer("correct")}
+                          className="px-8 py-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl font-bold hover:bg-emerald-500 hover:text-white transition-all shadow-lg shadow-emerald-500/10"
+                        >
+                          Đã nhớ
+                        </button>
+                        <span className="text-[10px] font-mono text-slate-600 border border-slate-800 px-1.5 rounded bg-slate-900">PHÍM 2</span>
                       </div>
                     </div>
-                  </motion.div>
+                  )}
                 </div>
               )}
 
-              {isAnswered && currentQuestion.type !== 'flashcard' && (
+              {isAnswered && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="mt-12 pt-10 border-t border-slate-800"
                 >
                   <div className="flex items-start gap-4 mb-8">
-                    <div className="p-3 bg-slate-950 border border-slate-800 rounded-2xl text-indigo-400 shadow-inner">
-                      <Brain size={24} />
+                    <div className={cn(
+                      "p-3 rounded-2xl border shadow-inner",
+                      selectedAnswer === (currentQuestion.type === 'flashcard' ? 'correct' : currentQuestion.correctAnswer)
+                        ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                        : "bg-red-500/10 border-red-500/20 text-red-400"
+                    )}>
+                      {selectedAnswer === (currentQuestion.type === 'flashcard' ? 'correct' : currentQuestion.correctAnswer) ? <Trophy size={24} /> : <AlertCircle size={24} />}
                     </div>
                     <div>
                       <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Dữ liệu phân tích</h4>
@@ -531,7 +505,7 @@ export default function QuizEngine({ vocabulary, mode, onFinish, onClose }: Quiz
                     onClick={handleNext}
                     className="w-full py-5 bg-slate-100 text-slate-900 rounded-2xl font-black text-lg flex items-center justify-center gap-3 hover:bg-white transition-all shadow-xl shadow-white/5 active:scale-[0.98]"
                   >
-                    {currentStep < questions.length - 1 ? "NEXT PHASE" : "COMPLETE SEQUENCE"}
+                    {currentStep < questions.length - 1 ? "TIẾP TỤC" : "HOÀN THÀNH"}
                     <ArrowRight size={22} strokeWidth={3} />
                   </button>
                 </motion.div>

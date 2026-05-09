@@ -1140,16 +1140,12 @@ Hoặc dán ghi chú tiếng Trung của bạn tại đây..."
           type="vocabulary"
           mode={practiceMode}
           vocabulary={vocabulary}
+          onAnswer={recordResult}
           onClose={() => {
             setIsQuizMode(false);
             setShowDueOnly(false);
           }}
-          onFinish={(correctIds, askedIds) => {
-            askedIds.forEach(id => {
-              const isCorrect = correctIds.includes(id);
-              recordResult(id, isCorrect);
-            });
-
+          onFinish={() => {
             updateActivity();
             setIsQuizMode(false);
             setShowDueOnly(false);

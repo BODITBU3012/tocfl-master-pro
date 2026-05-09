@@ -42,6 +42,7 @@ export interface QuizQuestion {
   options?: string[]; // For multiple choice
   correctAnswer: string | string[]; // string for MC/FITB, array for reorder
   explanation?: string;
+  pinyin?: string;
   vocabId?: string;
   level: ProficiencyLevel;
 }

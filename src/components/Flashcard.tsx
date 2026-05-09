@@ -7,6 +7,8 @@ interface FlashcardProps {
   word: string;
   pinyin: string;
   meaning: string;
+  isFlipped?: boolean;
+  onFlip?: (flipped: boolean) => void;
   className?: string;
 }
 
@@ -14,19 +16,24 @@ interface FlashcardProps {
  * A flip-able flashcard component for vocabulary learning.
  * Displays word/pinyin on front and meaning on back.
  */
-export function Flashcard({ word, pinyin, meaning, className }: FlashcardProps) {
-  const [isFlipped, setIsFlipped] = useState(false);
+export function Flashcard({ word, pinyin, meaning, isFlipped: controlledFlipped, onFlip, className }: FlashcardProps) {
+  const [internalFlipped, setInternalFlipped] = useState(false);
+  const isFlipped = controlledFlipped !== undefined ? controlledFlipped : internalFlipped;
 
   const handleToggle = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    setIsFlipped(!isFlipped);
+    if (onFlip) {
+      onFlip(!isFlipped);
+    } else {
+      setInternalFlipped(!isFlipped);
+    }
   };
 
   return (
     <div className={cn("flex flex-col items-center gap-6 w-full max-w-sm mx-auto", className)} id="flashcard-container">
       <div 
         className="relative w-full aspect-[4/3] perspective-1000 group cursor-pointer"
-        onClick={() => setIsFlipped(!isFlipped)}
+        onClick={handleToggle}
         id="flashcard-flip-area"
       >
         <motion.div
