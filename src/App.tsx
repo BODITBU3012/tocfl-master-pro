@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Timer, Trophy, AlertCircle, Volume2, Plus, Search, BookOpen, Brain, Trash2, ChevronRight, X, Sparkles, Filter, LayoutGrid, List, TrendingUp, Calendar, Loader2, FileText, Upload, Check, Clock, Music, Headphones, Flame } from 'lucide-react';
+import { Timer, Trophy, AlertCircle, Volume2, Plus, Search, BookOpen, Brain, Trash2, ChevronRight, X, Sparkles, Filter, LayoutGrid, List, TrendingUp, Calendar, Loader2, FileText, Upload, Check, Clock, Music, Headphones, Flame, Bell } from 'lucide-react';
 import { useVocabulary } from './hooks/useVocabulary';
 import { useStreak } from './hooks/useStreak';
 import { ProficiencyLevel, VocabularyItem, PracticeMode } from './types';
@@ -66,42 +66,61 @@ export default function App() {
   const allCategories = Array.from(new Set(vocabulary.map(v => v.category || 'Chưa phân loại'))).sort();
 
   const filteredVocab = vocabulary.filter(v => {
-    const matchesSearch = v.word.includes(searchTerm) || 
-      v.meaning.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      v.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+    const searchLow = searchTerm.toLowerCase();
+    const matchesSearch = (v.word || '').includes(searchTerm) || 
+      (v.pinyin || '').toLowerCase().includes(searchLow) ||
+      (v.meaning || '').toLowerCase().includes(searchLow) || 
+      (v.tags || [])?.some(tag => tag.toLowerCase().includes(searchLow));
     const matchesLevel = selectedLevel === 'All' || v.level === selectedLevel;
     const matchesCategory = selectedCategory === 'All' || (v.category || 'Chưa phân loại') === selectedCategory;
     const matchesColor = selectedColor === 'All' || (v.color === (selectedColor === 'none' ? undefined : selectedColor));
-    const matchesTags = selectedTags.length === 0 || selectedTags.every(tag => v.tags?.includes(tag));
+    const matchesTags = selectedTags.length === 0 || selectedTags.every(tag => (v.tags || []).includes(tag));
     const isDue = !v.nextReviewAt || v.nextReviewAt <= Date.now();
     const matchesDue = !showDueOnly || isDue;
     return matchesSearch && matchesLevel && matchesCategory && matchesColor && matchesTags && matchesDue;
   }).sort((a, b) => {
-    if (sortBy === 'mastery') return b.masteryScore - a.masteryScore;
-    if (sortBy === 'alphabetical') return a.word.localeCompare(b.word);
-    return b.createdAt - a.createdAt;
+    if (sortBy === 'mastery') return (b.masteryScore || 0) - (a.masteryScore || 0);
+    if (sortBy === 'alphabetical') return (a.word || '').localeCompare(b.word || '');
+    return (b.createdAt || 0) - (a.createdAt || 0);
   });
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newWord || !newMeaning) return;
-    addVocab({
-      word: newWord,
-      pinyin: newPinyin,
-      meaning: newMeaning,
-      level: newLevel,
-      exampleSentence: newExample,
-      category: newCategory,
-      tags: newTags.split(',').map(tag => tag.trim()).filter(Boolean),
-      color: newColor,
-    });
-    setNewWord('');
-    setNewPinyin('');
-    setNewMeaning('');
-    setNewExample('');
-    setNewTags('');
-    setNewColor(undefined);
-    setIsAdding(false);
+    
+    setIsParsingBulk(true); // Reuse loader if available or just wait
+    try {
+      await addVocab({
+        word: newWord,
+        pinyin: newPinyin,
+        meaning: newMeaning,
+        level: newLevel,
+        exampleSentence: newExample,
+        category: newCategory,
+        tags: newTags.split(',').map(tag => tag.trim()).filter(Boolean),
+        color: newColor,
+      });
+      
+      setNewWord('');
+      setNewPinyin('');
+      setNewMeaning('');
+      setNewExample('');
+      setNewTags('');
+      setNewColor(undefined);
+      setIsAdding(false);
+      
+      // Reset filters so the new word is visible
+      setSearchTerm('');
+      setSelectedLevel('All');
+      setSelectedCategory('All');
+      setSelectedColor('All');
+      setSelectedTags([]);
+      setShowDueOnly(false);
+    } catch (err) {
+      console.error("Failed to add vocab", err);
+    } finally {
+      setIsParsingBulk(false);
+    }
   };
 
   const toggleTag = (tag: string) => {
@@ -120,8 +139,62 @@ export default function App() {
 
   const [isActive, setIsActive] = useState(false);
   const [isGoalSettingOpen, setIsGoalSettingOpen] = useState(false);
+  const [reminderTime, setReminderTime] = useState(() => localStorage.getItem('study_reminder_time') || '09:00');
+  const [isReminderEnabled, setIsReminderEnabled] = useState(() => localStorage.getItem('study_reminder_enabled') === 'true');
   const lastActivityRef = React.useRef(Date.now());
   const lastSaveTimeRef = React.useRef(0);
+  const lastNotificationDateRef = React.useRef(localStorage.getItem('last_notification_date') || '');
+
+  // Handle Notifications
+  const requestNotificationPermission = async () => {
+    if (!("Notification" in window)) return false;
+    if (Notification.permission === "granted") return true;
+    
+    try {
+      const result = await Notification.requestPermission();
+      return result === "granted";
+    } catch (err) {
+      console.error("Notification permission error", err);
+      return false;
+    }
+  };
+
+  const sendStudyReminder = () => {
+    if (!isReminderEnabled || Notification.permission !== "granted") return;
+    
+    const today = new Date().toISOString().split('T')[0];
+    if (lastNotificationDateRef.current === today) return;
+
+    const notification = new Notification("Đã đến lúc học tiếng Trung!", {
+      body: "Chỉ cần 15 phút mỗi ngày để tiến bộ vượt bậc. Bắt đầu ngay!",
+      icon: "/favicon.ico",
+    });
+
+    notification.onclick = () => {
+      window.focus();
+      setIsQuizMode(true);
+      notification.close();
+    };
+
+    lastNotificationDateRef.current = today;
+    localStorage.setItem('last_notification_date', today);
+  };
+
+  useEffect(() => {
+    const checkReminder = () => {
+      if (!isReminderEnabled) return;
+      
+      const now = new Date();
+      const currentStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      
+      if (currentStr === reminderTime) {
+        sendStudyReminder();
+      }
+    };
+
+    const reminderInterval = setInterval(checkReminder, 60000);
+    return () => clearInterval(reminderInterval);
+  }, [isReminderEnabled, reminderTime]);
 
   const [todayStudyTime, setTodayStudyTime] = useState(() => {
     const saved = localStorage.getItem('study_time_data');
@@ -1027,6 +1100,62 @@ export default function App() {
                   <p className="text-[10px] text-slate-500 leading-relaxed italic">
                     "Học 15-30 phút mỗi ngày đều đặn hiệu quả hơn rất nhiều so với học 3 tiếng chỉ một lần duy nhất trong tuần."
                   </p>
+                </div>
+
+                <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800/50">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Bell size={14} className="text-indigo-400" />
+                      <span className="text-[10px] font-bold text-slate-300 uppercase tracking-tight">Nhắc nhở học tập</span>
+                    </div>
+                    <button 
+                      onClick={async () => {
+                        const enabled = !isReminderEnabled;
+                        if (enabled) {
+                          const granted = await requestNotificationPermission();
+                          if (!granted) {
+                            alert("Vui lòng cho phép thông báo trong trình duyệt để sử dụng tính năng này.");
+                            return;
+                          }
+                        }
+                        setIsReminderEnabled(enabled);
+                        localStorage.setItem('study_reminder_enabled', enabled.toString());
+                      }}
+                      className={cn(
+                        "w-10 h-5 rounded-full transition-all relative",
+                        isReminderEnabled ? "bg-indigo-600" : "bg-slate-800"
+                      )}
+                    >
+                      <div className={cn(
+                        "absolute top-1 w-3 h-3 rounded-full bg-white transition-all",
+                        isReminderEnabled ? "right-1" : "left-1"
+                      )} />
+                    </button>
+                  </div>
+
+                  {isReminderEnabled && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="space-y-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 font-medium">Giờ thông báo hàng ngày</span>
+                        <input 
+                          type="time" 
+                          value={reminderTime}
+                          onChange={(e) => {
+                            setReminderTime(e.target.value);
+                            localStorage.setItem('study_reminder_time', e.target.value);
+                          }}
+                          className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-indigo-400 font-mono focus:outline-none focus:border-indigo-500"
+                        />
+                      </div>
+                      <p className="text-[9px] text-slate-600 leading-tight italic">
+                        * Bạn sẽ nhận được thông báo trình duyệt vào thời điểm này nếu chưa hoàn thành mục tiêu học tập.
+                      </p>
+                    </motion.div>
+                  )}
                 </div>
 
                 <button 

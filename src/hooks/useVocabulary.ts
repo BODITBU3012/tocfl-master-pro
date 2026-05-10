@@ -33,12 +33,14 @@ export function useVocabulary() {
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
+    // Remove orderBy from query to avoid documents with null createdAt being filtered out during local writes
+    const q = query(collection(db, COLLECTION_NAME));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const items: VocabularyItem[] = [];
       snapshot.forEach((doc) => {
-        const data = doc.data();
+        // Use estimate to get a value for serverTimestamp during local writes
+        const data = doc.data({ serverTimestamps: 'estimate' });
         items.push({
           ...data,
           id: doc.id,
@@ -47,6 +49,9 @@ export function useVocabulary() {
           nextReviewAt: data.nextReviewAt instanceof Timestamp ? data.nextReviewAt.toMillis() : data.nextReviewAt,
         } as VocabularyItem);
       });
+      
+      // Sort on client side
+      items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       
       setVocabulary(items);
       setIsLoaded(true);
