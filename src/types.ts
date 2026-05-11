@@ -19,6 +19,7 @@ export interface VocabularyItem {
   masteryScore: number; // 0 to 100
   notes?: string;
   lesson?: string;
+  wordType?: string;
   isSelected?: boolean;
   color?: string;
 }
@@ -45,6 +46,7 @@ export interface QuizQuestion {
   correctAnswer: string | string[]; // string for MC/FITB, array for reorder
   explanation?: string;
   pinyin?: string;
+  wordType?: string;
   vocabId?: string;
   level: ProficiencyLevel;
 }

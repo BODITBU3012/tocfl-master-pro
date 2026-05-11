@@ -7,6 +7,7 @@ interface FlashcardProps {
   word: string;
   pinyin: string;
   meaning: string;
+  wordType?: string;
   isFlipped?: boolean;
   onFlip?: (flipped: boolean) => void;
   className?: string;
@@ -16,7 +17,7 @@ interface FlashcardProps {
  * A flip-able flashcard component for vocabulary learning.
  * Displays word/pinyin on front and meaning on back.
  */
-export function Flashcard({ word, pinyin, meaning, isFlipped: controlledFlipped, onFlip, className }: FlashcardProps) {
+export function Flashcard({ word, pinyin, meaning, wordType, isFlipped: controlledFlipped, onFlip, className }: FlashcardProps) {
   const [internalFlipped, setInternalFlipped] = useState(false);
   const isFlipped = controlledFlipped !== undefined ? controlledFlipped : internalFlipped;
 
@@ -57,6 +58,11 @@ export function Flashcard({ word, pinyin, meaning, isFlipped: controlledFlipped,
             <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-fuchsia-500/10 rounded-full blur-2xl" />
             
             <div className="relative z-10 flex flex-col items-center">
+              {wordType && (
+                <span className="px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[9px] font-bold uppercase tracking-[0.2em] rounded-full mb-4">
+                  {wordType}
+                </span>
+              )}
               <h2 className="text-6xl font-black text-white font-display-zh mb-3 tracking-tight">
                 {word}
               </h2>

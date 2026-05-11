@@ -85,36 +85,60 @@ export default function App() {
       const firstRow = jsonData[0];
       const keys = Object.keys(firstRow);
       
-      // Look for specifically requested category/level column
-      const levelKey = keys.find(k => 
-        k.toLowerCase().includes('cấp độ') || 
-        k.toLowerCase().includes('trình độ') || 
-        k.toLowerCase().includes('loại từ') ||
-        k.toLowerCase().includes('level') ||
-        k.toLowerCase().includes('dangdai') ||
-        k.toLowerCase().includes('đương đại') ||
-        k.includes('當代')
-      );
+      const wordKey = keys.find(k => {
+        const lowerK = k.toLowerCase();
+        return lowerK.includes('chữ hán') || lowerK === 'word' || lowerK === 'hanzi' || lowerK.includes('từ') || lowerK === 'w';
+      });
 
-      const lessonKey = keys.find(k => 
-        k.toLowerCase().includes('bài') || 
-        k.toLowerCase().includes('lesson') || 
-        k.toLowerCase().includes('chapter') ||
-        k.toLowerCase().includes('l') ||
-        k.toLowerCase() === 'b'
-      );
+      const pinyinKey = keys.find(k => {
+        const lowerK = k.toLowerCase();
+        return lowerK.includes('phiên âm') || lowerK === 'pinyin' || lowerK.includes('đọc') || lowerK === 'p';
+      });
 
-      if (!levelKey) {
-        throw new Error("Yêu cầu bắt buộc: File Excel của bạn cần có một cột ghi cấp độ (ví dụ: Cấp độ, Trình độ, Loại từ, Level, hoặc 當代). Hệ thống cần thông tin này để tạo bài tập chính xác.");
-      }
+      const meaningKey = keys.find(k => {
+        const lowerK = k.toLowerCase();
+        return lowerK.includes('ý nghĩa') || lowerK === 'meaning' || lowerK.includes('nghĩa') || lowerK === 'm';
+      });
 
-      // Check if word/hanzi and meaning columns exist
-      const wordKey = keys.find(k => k.toLowerCase().includes('từ') || k.toLowerCase().includes('word') || k.toLowerCase().includes('hanzi') || k.toLowerCase().includes('chữ'));
-      const meaningKey = keys.find(k => k.toLowerCase().includes('nghĩa') || k.toLowerCase().includes('meaning') || k.toLowerCase().includes('giải thích'));
-      const pinyinKey = keys.find(k => k.toLowerCase().includes('pinyin') || k.toLowerCase().includes('phiên âm') || k.toLowerCase().includes('đọc'));
+      const wordTypeKey = keys.find(k => {
+        const lowerK = k.toLowerCase();
+        return lowerK.includes('loại từ') || 
+               lowerK.includes('từ loại') || 
+               lowerK.includes('part of speech') || 
+               lowerK.includes('pos') || 
+               lowerK.includes('type') ||
+               lowerK === 't';
+      });
 
-      if (!wordKey || !meaningKey) {
-        throw new Error("File Excel phải có ít nhất các cột: Chữ Hán, Ý nghĩa và Cấp độ.");
+      const levelKey = keys.find(k => {
+        const lowerK = k.toLowerCase();
+        return lowerK.includes('cấp độ') || 
+               lowerK.includes('trình độ') || 
+               lowerK === 'level' || 
+               lowerK.includes('dangdai') ||
+               lowerK.includes('당대') ||
+               lowerK.includes('đương đại') ||
+               lowerK.includes('當代')
+      });
+
+      const lessonKey = keys.find(k => {
+        const lowerK = k.toLowerCase();
+        return lowerK === 'bài' || 
+               lowerK === 'lesson' || 
+               lowerK === 'b' || 
+               lowerK === 'l' ||
+               lowerK.includes('bài học') || 
+               lowerK.includes('unit') || 
+               lowerK.includes('chapter');
+      });
+
+      const exampleKey = keys.find(k => {
+        const lowerK = k.toLowerCase();
+        return lowerK.includes('ví dụ') || lowerK.includes('example') || lowerK.includes('câu ví dụ');
+      });
+
+      if (!levelKey || !wordKey || !meaningKey) {
+        throw new Error("Yêu cầu bắt buộc: File Excel của bạn cần có ít nhất các cột: Chữ Hán (Word), Ý nghĩa (Meaning), và Cấp độ (Level).");
       }
 
       const items = jsonData.map(row => {
@@ -131,16 +155,19 @@ export default function App() {
         }
 
         const rawLesson = lessonKey ? String(row[lessonKey] || '').trim() : undefined;
+        const rawWordType = wordTypeKey ? String(row[wordTypeKey] || '').trim() : undefined;
+        const rawPinyin = pinyinKey ? String(row[pinyinKey] || '').trim() : '';
 
         return {
           word: String(row[wordKey] || '').trim(),
-          pinyin: String(row[pinyinKey || ''] || '').trim(),
+          pinyin: rawPinyin,
           meaning: String(row[meaningKey] || '').trim(),
           level,
           lesson: rawLesson,
+          wordType: rawWordType,
           category: 'Excel Import',
           tags: [],
-          exampleSentence: String(row['Example'] || row['Ví dụ'] || row['Câu ví dụ'] || ''),
+          exampleSentence: exampleKey ? String(row[exampleKey] || '').trim() : '',
           notes: String(row['Notes'] || row['Ghi chú'] || row['Mẹo nhớ'] || '')
         };
       }).filter((item): item is any => item !== null && item.word !== '');
@@ -172,6 +199,7 @@ export default function App() {
   const [newWord, setNewWord] = useState('');
   const [newPinyin, setNewPinyin] = useState('');
   const [newMeaning, setNewMeaning] = useState('');
+  const [newWordType, setNewWordType] = useState('');
   const [newExample, setNewExample] = useState('');
   const [newTags, setNewTags] = useState('');
   const [newLevel, setNewLevel] = useState<ProficiencyLevel>('當代1');
@@ -245,6 +273,7 @@ export default function App() {
         word: newWord,
         pinyin: newPinyin,
         meaning: newMeaning,
+        wordType: newWordType || undefined,
         level: newLevel,
         lesson: newLesson || undefined,
         exampleSentence: newExample,
@@ -261,6 +290,7 @@ export default function App() {
       setNewWord('');
       setNewPinyin('');
       setNewMeaning('');
+      setNewWordType('');
       setNewLesson('');
       setNewExample('');
       setNewNotes('');
@@ -1123,6 +1153,11 @@ export default function App() {
                     
                     <div className="mb-4">
                       <div className="flex items-center gap-2">
+                        {item.wordType && (
+                          <span className="text-[10px] font-bold text-indigo-400/80 mb-0.5 uppercase tracking-tighter bg-indigo-500/10 px-1.5 rounded shrink-0">
+                            {item.wordType}
+                          </span>
+                        )}
                         <h3 className="text-2xl md:text-3xl font-black font-display-zh text-slate-100 tracking-tight">{item.word}</h3>
                         <button 
                           onClick={(e) => {
@@ -1278,6 +1313,11 @@ export default function App() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <h3 className="text-lg font-bold text-slate-100 truncate font-zh">{item.word}</h3>
+                          {item.wordType && (
+                            <span className="text-[8px] font-black text-indigo-400 uppercase bg-indigo-500/10 px-1 rounded shrink-0">
+                              {item.wordType}
+                            </span>
+                          )}
                           <span className="text-[9px] text-slate-500 font-mono tracking-tight uppercase">{item.pinyin}</span>
                           <span className="text-[8px] bg-slate-800/80 px-1.5 py-0.5 rounded text-slate-500 font-bold uppercase shrink-0">{item.category || 'Chưa phân loại'}</span>
                         </div>
@@ -1548,6 +1588,16 @@ export default function App() {
                   />
                 </div>
                 <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-indigo-400 mb-2">Word Type (e.g. N, V, Adj, Phrase...)</label>
+                  <input 
+                    type="text"
+                    value={newWordType}
+                    onChange={(e) => setNewWordType(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm text-indigo-400 font-bold"
+                    placeholder="VD: N, V, Adj, Adv..."
+                  />
+                </div>
+                <div>
                   <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Example Sentence (Optional)</label>
                   <textarea 
                     value={newExample}
@@ -1729,12 +1779,13 @@ export default function App() {
                     <div className="flex-1 flex flex-col justify-center p-4 bg-slate-950 border border-slate-800 rounded-2xl">
                       <h4 className="text-[10px] font-bold text-indigo-400 uppercase mb-2">Hướng dẫn Excel</h4>
                       <ul className="text-[9px] text-slate-500 space-y-1 ml-3 list-disc">
-                        <li>Cột 1: Chữ Hán (Word / Hanzi / Chữ Hán)</li>
-                        <li>Cột 2: Phiên âm (Pinyin / Phiên âm)</li>
+                        <li>Cột 1: Chữ Hán (Word / Hanzi / Từ)</li>
+                        <li>Cột 2: Phiên âm (Pinyin / Đọc)</li>
                         <li>Cột 3: Ý nghĩa (Meaning / Nghĩa)</li>
-                        <li className="text-indigo-400 font-bold">Cột 4: Cấp độ (Level / Trình độ) - BẮT BUỘC</li>
-                        <li className="text-emerald-400 font-bold">Cột 5: Bài (Lesson / Bài / L) - KHUYÊN DÙNG</li>
-                        <li className="text-slate-400 italic font-medium">Lưu ý: Mọi tên cột gần giống mô tả trên đều được chấp nhận</li>
+                        <li className="text-emerald-400 font-bold">Cột 4: Từ Loại (Word Type / POS)</li>
+                        <li className="text-indigo-400 font-bold">Cột 5: Cấp độ (1, 2, 3, 4, 5, 6) - BẮT BUỘC</li>
+                        <li className="text-emerald-400 font-bold">Cột 6: Bài (Lesson / Unit) - KHUYÊN DÙNG</li>
+                        <li>Cột 7: Ví dụ (Example)</li>
                       </ul>
                     </div>
                   </div>

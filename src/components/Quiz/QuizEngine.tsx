@@ -27,6 +27,7 @@ function generateLocalVocabQuestion(pool: VocabularyItem[], target: VocabularyIt
       type: 'flashcard',
       prompt: target.word,
       pinyin: target.pinyin,
+      wordType: target.wordType,
       correctAnswer: target.meaning,
       explanation: target.exampleSentence || 'Thêm ví dụ cho từ này để học hiệu quả hơn!',
       level: target.level
@@ -644,6 +645,7 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                       word={currentQuestion.prompt}
                       pinyin={currentQuestion.pinyin || ''}
                       meaning={currentQuestion.correctAnswer as string}
+                      wordType={currentQuestion.wordType}
                       isFlipped={isFlipped}
                       onFlip={setIsFlipped}
                     />
