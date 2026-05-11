@@ -66,6 +66,7 @@ export default function App() {
       const levelKey = keys.find(k => 
         k.toLowerCase().includes('cấp độ') || 
         k.toLowerCase().includes('trình độ') || 
+        k.toLowerCase().includes('loại từ') ||
         k.toLowerCase().includes('level') ||
         k.toLowerCase().includes('dangdai') ||
         k.toLowerCase().includes('đương đại') ||
@@ -73,7 +74,7 @@ export default function App() {
       );
 
       if (!levelKey) {
-        throw new Error("Không tìm thấy cột 'Cấp độ' (當代1-6) trong file. Để hệ thống phân loại chính xác, file Excel của bạn bắt buộc phải có cột này.");
+        throw new Error("Yêu cầu bắt buộc: File Excel của bạn cần có một cột ghi cấp độ (ví dụ: Cấp độ, Trình độ, Loại từ, Level, hoặc 當代). Hệ thống cần thông tin này để tạo bài tập chính xác.");
       }
 
       // Check if word/hanzi and meaning columns exist
@@ -87,17 +88,14 @@ export default function App() {
 
       const items = jsonData.map(row => {
         let rawLevel = String(row[levelKey] || '').trim();
-        // Standardize level mapping
+        // Standardize level mapping: 1 -> 當代1, 2 -> 當代2, etc.
         let level: ProficiencyLevel = '當代1';
-        if (rawLevel.includes('1')) level = '當代1';
-        else if (rawLevel.includes('2')) level = '當代2';
-        else if (rawLevel.includes('3')) level = '當代3';
-        else if (rawLevel.includes('4')) level = '當代4';
-        else if (rawLevel.includes('5')) level = '當代5';
-        else if (rawLevel.includes('6')) level = '當代6';
-        else {
-          // If level is invalid but row has data, we might want to skip or default. 
-          // The user said "if not there, cannot upload", so we should be strict if it's missing entirely.
+        const levelMatch = rawLevel.match(/([1-6])/);
+        if (levelMatch) {
+          level = `當代${levelMatch[1]}` as ProficiencyLevel;
+        } else if (rawLevel.includes('當代')) {
+          level = rawLevel as ProficiencyLevel;
+        } else {
           if (!rawLevel) return null;
         }
 
@@ -1579,11 +1577,11 @@ export default function App() {
                     <div className="flex-1 flex flex-col justify-center p-4 bg-slate-950 border border-slate-800 rounded-2xl">
                       <h4 className="text-[10px] font-bold text-indigo-400 uppercase mb-2">Hướng dẫn Excel</h4>
                       <ul className="text-[9px] text-slate-500 space-y-1 ml-3 list-disc">
-                        <li>Cột 1: Chữ Hán (Word)</li>
-                        <li>Cột 2: Phiên âm (Pinyin)</li>
-                        <li>Cột 3: Ý nghĩa (Meaning)</li>
-                        <li className="text-indigo-300 font-bold">Cột 4: Cấp độ (Level) - BẮT BUỘC</li>
-                        <li>Giá trị cấp độ: 當代1, 當代2...</li>
+                        <li>Cột 1: Chữ Hán (Word / Hanzi / Chữ Hán)</li>
+                        <li>Cột 2: Phiên âm (Pinyin / Phiên âm)</li>
+                        <li>Cột 3: Ý nghĩa (Meaning / Nghĩa)</li>
+                        <li className="text-indigo-400 font-bold">Cột 4: Cấp độ (Level / Trình độ / Loại từ / 當代) - BẮT BUỘC</li>
+                        <li className="text-slate-400 italic font-medium">Giá trị: 1-6 (Sẽ tự động chuyển thành 當代1-6)</li>
                       </ul>
                     </div>
                   </div>
