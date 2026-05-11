@@ -17,6 +17,7 @@ export interface VocabularyItem {
   srsEase: number; // SM-2 ease factor
   repetitionCount: number;
   masteryScore: number; // 0 to 100
+  notes?: string;
   isSelected?: boolean;
   color?: string;
 }
@@ -31,9 +32,9 @@ export interface AudioLesson {
   createdAt: number;
 }
 
-export type PracticeMode = 'standard' | 'timed' | 'mistake-review' | 'flashcards' | 'typing' | 'srs';
+export type PracticeMode = 'standard' | 'timed' | 'mistake-review' | 'flashcards' | 'typing' | 'srs' | 'tone-master' | 'ear-training';
 
-export type QuestionType = 'multiple-choice' | 'fill-in-the-blank' | 'sentence-reorder' | 'flashcard' | 'typing';
+export type QuestionType = 'multiple-choice' | 'fill-in-the-blank' | 'sentence-reorder' | 'flashcard' | 'typing' | 'tone-selection' | 'audio-to-meaning' | 'hanzi-to-pinyin' | 'sentence-translation';
 
 export interface QuizQuestion {
   id: string;

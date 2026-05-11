@@ -65,6 +65,50 @@ function generateLocalVocabQuestion(pool: VocabularyItem[], target: VocabularyIt
     };
   }
 
+  if (type === 'tone-selection') {
+    const tones = ['ā', 'á', 'ǎ', 'à', 'ō', 'ó', 'ǒ', 'ò', 'ē', 'é', 'ě', 'è', 'ī', 'í', 'ǐ', 'ì', 'ū', 'ú', 'ǔ', 'ù', 'ǖ', 'ǘ', 'ǚ', 'ǜ'];
+    // Very simple tone distractor generator: swap a tone mark
+    const options = [target.pinyin, ...distractors.map(d => d.pinyin)].sort(() => 0.5 - Math.random());
+    return {
+      id: Math.random().toString(36).substr(2, 9),
+      vocabId: target.id,
+      type: 'tone-selection',
+      prompt: `Phiên âm chính xác của "${target.word}" là gì?`,
+      correctAnswer: target.pinyin,
+      options,
+      level: target.level,
+      explanation: `"${target.word}" được phát âm là ${target.pinyin}.`
+    };
+  }
+
+  if (type === 'audio-to-meaning') {
+    const options = [target.meaning, ...distractors.map(d => d.meaning)].sort(() => 0.5 - Math.random());
+    return {
+      id: Math.random().toString(36).substr(2, 9),
+      vocabId: target.id,
+      type: 'audio-to-meaning',
+      prompt: target.word, // We'll trigger audio for this
+      correctAnswer: target.meaning,
+      options,
+      level: target.level,
+      explanation: `Bạn vừa nghe "${target.word}", nghĩa là "${target.meaning}".`
+    };
+  }
+
+  if (type === 'hanzi-to-pinyin') {
+    const options = [target.pinyin, ...distractors.map(d => d.pinyin)].sort(() => 0.5 - Math.random());
+    return {
+      id: Math.random().toString(36).substr(2, 9),
+      vocabId: target.id,
+      type: 'hanzi-to-pinyin',
+      prompt: target.word,
+      correctAnswer: target.pinyin,
+      options,
+      level: target.level,
+      explanation: `"${target.word}" có phiên âm là ${target.pinyin}`
+    };
+  }
+
   if (type === 'typing') {
     return {
       id: Math.random().toString(36).substr(2, 9),
@@ -75,6 +119,31 @@ function generateLocalVocabQuestion(pool: VocabularyItem[], target: VocabularyIt
       pinyin: target.pinyin,
       level: target.level,
       explanation: `Chính xác! ${target.word} (${target.pinyin}) = ${target.meaning}`
+    };
+  }
+
+  if (type === 'sentence-translation' && target.exampleSentence) {
+    return {
+      id: Math.random().toString(36).substr(2, 9),
+      vocabId: target.id,
+      type: 'sentence-translation',
+      prompt: `Dịch sang tiếng Trung: "${target.meaning}" (Ví dụ với từ "${target.word}")`,
+      correctAnswer: target.exampleSentence,
+      level: target.level,
+      explanation: `Câu đúng là: "${target.exampleSentence}"`
+    };
+  }
+
+  if (type === 'sentence-reorder' && target.exampleSentence) {
+    const parts = target.exampleSentence.split(''); // Characters in Chinese
+    return {
+      id: Math.random().toString(36).substr(2, 9),
+      vocabId: target.id,
+      type: 'sentence-reorder',
+      prompt: `Sắp xếp các ký tự để tạo thành câu: "${target.meaning}"`,
+      correctAnswer: parts,
+      level: target.level,
+      explanation: `Câu hoàn chỉnh: "${target.exampleSentence}"`
     };
   }
 
@@ -139,30 +208,45 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
         questionTypes = ['flashcard'];
       } else if (mode === 'typing') {
         questionTypes = ['typing'];
+      } else if (mode === 'tone-master') {
+        questionTypes = ['tone-selection'];
+      } else if (mode === 'ear-training') {
+        questionTypes = ['audio-to-meaning'];
       } else {
-        questionTypes = ['multiple-choice', 'fill-in-the-blank', 'multiple-choice', 'typing'];
+        questionTypes = ['multiple-choice', 'fill-in-the-blank', 'hanzi-to-pinyin', 'tone-selection', 'audio-to-meaning', 'typing', 'sentence-reorder', 'sentence-translation'];
       }
       
       try {
-        const selected = vocabulary.filter(v => v.isSelected);
-        let pool = selected.length > 0 ? selected : (
-          mode === 'mistake-review' 
-            ? vocabulary.filter(v => v.masteryScore < 60)
-            : mode === 'srs'
-              ? vocabulary.filter(v => !v.nextReviewAt || v.nextReviewAt <= Date.now())
-              : vocabulary
-        );
+        const pool = vocabulary.filter(v => v.isSelected).length > 0 
+          ? vocabulary.filter(v => v.isSelected) 
+          : (
+            mode === 'mistake-review' 
+              ? vocabulary.filter(v => v.masteryScore < 60)
+              : mode === 'srs'
+                ? vocabulary.filter(v => !v.nextReviewAt || v.nextReviewAt <= Date.now())
+                : vocabulary
+          );
         
-        if (pool.length === 0 && mode === 'mistake-review') {
-          pool = vocabulary; // Fallback to all if no mistakes
+        let finalPool = [...pool];
+        if (finalPool.length === 0 && mode === 'mistake-review') {
+          finalPool = [...vocabulary]; // Fallback to all if no mistakes
         }
 
-        const quizLength = mode === 'timed' ? Math.min(20, pool.length) : (mode === 'flashcards' ? pool.length : Math.min(5, pool.length));
-        const selectedItems = [...pool].sort(() => 0.5 - Math.random()).slice(0, quizLength);
+        const quizLength = mode === 'timed' ? Math.min(20, finalPool.length) : (mode === 'flashcards' ? finalPool.length : Math.min(5, finalPool.length));
         
-        const generated = selectedItems.map((v, i) => 
-          generateLocalVocabQuestion(pool, v, questionTypes[i % questionTypes.length])
-        );
+        // Shuffle and pick
+        const selectedItems = [...finalPool].sort(() => 0.5 - Math.random()).slice(0, quizLength);
+        
+        const generated = selectedItems.map((v, i) => {
+          let type = questionTypes[i % questionTypes.length];
+          
+          // Fallback if no sentence for sentence types
+          if ((type === 'sentence-reorder' || type === 'sentence-translation' || type === 'fill-in-the-blank') && !v.exampleSentence) {
+            type = 'multiple-choice';
+          }
+          
+          return generateLocalVocabQuestion(finalPool, v, type);
+        });
         setQuestions(generated);
       } catch (err) {
         console.error("Failed to generate questions", err);
@@ -424,10 +508,15 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
               
               <div className="flex items-center gap-3 mb-8 md:mb-12">
                 <h3 className="text-xl md:text-5xl font-black text-slate-100 leading-tight tracking-tight flex-1 font-display-zh">
-                  {currentQuestion.prompt}
+                  {currentQuestion.type === 'audio-to-meaning' ? (
+                    <div className="flex items-center gap-4 text-indigo-400">
+                      <Volume2 size={48} className="md:w-16 md:h-16 animate-pulse" />
+                      <span className="text-2xl md:text-3xl text-slate-500 font-bold uppercase tracking-widest italic">Hãy tập trung lắng nghe...</span>
+                    </div>
+                  ) : currentQuestion.prompt}
                 </h3>
                   <button 
-                    onClick={() => speakChinese(currentQuestion.prompt)}
+                    onClick={() => speakChinese(currentQuestion.type === 'audio-to-meaning' ? (currentQuestion.vocabId ? vocabulary.find(v => v.id === currentQuestion.vocabId)?.word || currentQuestion.prompt : currentQuestion.prompt) : currentQuestion.prompt)}
                     className="p-2.5 rounded-full bg-slate-800 border border-slate-700 text-indigo-400 hover:bg-indigo-500/10 hover:border-indigo-500/30 transition-all md:p-4 shrink-0"
                     title="Listen"
                   >
@@ -435,8 +524,11 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                   </button>
               </div>
 
-              {/* Multiple Choice */}
-              {currentQuestion.type === 'multiple-choice' && (
+              {/* Multiple Choice & Selection Types */}
+              {(currentQuestion.type === 'multiple-choice' || 
+                currentQuestion.type === 'tone-selection' || 
+                currentQuestion.type === 'audio-to-meaning' || 
+                currentQuestion.type === 'hanzi-to-pinyin') && (
                 <div className="grid gap-3">
                   {currentQuestion.options?.map((option, i) => {
                     const isCorrect = option === currentQuestion.correctAnswer;
@@ -582,8 +674,8 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                 </div>
               )}
 
-              {/* Typing Question */}
-              {currentQuestion.type === 'typing' && (
+              {/* Typing Question & Sentence Translation */}
+              {(currentQuestion.type === 'typing' || currentQuestion.type === 'sentence-translation') && (
                 <div className="flex flex-col gap-6">
                   {!isAnswered ? (
                     <form 
@@ -595,20 +687,20 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                       }}
                       className="flex flex-col gap-4"
                     >
-                      <input
+                      <textarea
                         autoFocus
-                        type="text"
                         value={typingInput}
                         onChange={(e) => setTypingInput(e.target.value)}
-                        placeholder="Gõ từ tiếng Trung tại đây..."
-                        className="w-full p-6 bg-slate-950 border-2 border-slate-800 rounded-3xl text-2xl font-bold text-slate-100 focus:border-indigo-500 transition-all outline-hidden text-center"
+                        placeholder={currentQuestion.type === 'sentence-translation' ? "Nhập câu tiếng Trung hoàn chỉnh (Phồn thể)..." : "Gõ bằng chữ Hán..."}
+                        rows={currentQuestion.type === 'sentence-translation' ? 3 : 1}
+                        className="w-full p-6 bg-slate-950 border-2 border-slate-800 rounded-3xl text-xl md:text-2xl font-bold text-slate-100 focus:border-indigo-500 transition-all outline-hidden text-center resize-none"
                       />
                       <button
                         type="submit"
                         disabled={!typingInput.trim()}
-                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-widest text-xs"
                       >
-                        KIỂM TRA
+                        KIỂM TRA ĐÁP ÁN
                       </button>
                     </form>
                   ) : (
@@ -616,14 +708,24 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                       "p-8 rounded-3xl border-2 flex flex-col items-center justify-center gap-4",
                       selectedAnswer === currentQuestion.correctAnswer ? "border-emerald-500 bg-emerald-500/10" : "border-red-500 bg-red-500/10"
                     )}>
-                      <div className="flex items-center gap-3">
-                         <span className="text-4xl font-bold">{selectedAnswer as string}</span>
-                         {selectedAnswer === currentQuestion.correctAnswer ? <Check size={32} className="text-emerald-400" /> : <X size={32} className="text-red-400" />}
+                      <div className="flex flex-col items-center gap-3">
+                         <span className="text-xl md:text-3xl font-bold text-center leading-relaxed font-zh">{selectedAnswer as string}</span>
+                         {selectedAnswer === currentQuestion.correctAnswer ? (
+                           <div className="flex items-center gap-2 text-emerald-400 font-bold uppercase text-[10px] tracking-widest mt-2">
+                             <Check size={20} />
+                             Chính xác
+                           </div>
+                         ) : (
+                           <div className="flex items-center gap-2 text-red-400 font-bold uppercase text-[10px] tracking-widest mt-2">
+                             <X size={20} />
+                             Chưa chính xác
+                           </div>
+                         )}
                       </div>
                       {selectedAnswer !== currentQuestion.correctAnswer && (
-                        <div className="mt-4 text-center">
-                          <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Đáp án đúng là:</p>
-                          <p className="text-2xl font-bold text-emerald-400">{currentQuestion.correctAnswer as string}</p>
+                        <div className="mt-4 p-4 bg-slate-950 rounded-2xl border border-slate-800 w-full text-center">
+                          <p className="text-slate-500 text-[10px] uppercase tracking-widest mb-2 font-bold">Đáp án chuẩn:</p>
+                          <p className="text-xl md:text-2xl font-bold text-emerald-400 leading-relaxed font-zh">{currentQuestion.correctAnswer as string}</p>
                         </div>
                       )}
                     </div>

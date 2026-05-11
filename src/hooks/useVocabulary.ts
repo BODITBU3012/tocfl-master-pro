@@ -88,8 +88,18 @@ export function useVocabulary() {
   const addVocab = async (item: Omit<VocabularyItem, 'id' | 'createdAt' | 'masteryScore' | 'srsInterval' | 'srsEase' | 'repetitionCount'>) => {
     try {
       console.log("Attempting to add vocab:", item.word);
+      
+      // Sanitization: Firestore cannot accept 'undefined' in payloads. 
+      // This pattern removes any keys with undefined values.
+      const sanitizedItem = Object.entries(item).reduce((acc, [key, value]) => {
+        if (value !== undefined) {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as any);
+
       const docRef = await addDoc(collection(db, COLLECTION_NAME), {
-        ...item,
+        ...sanitizedItem,
         createdAt: serverTimestamp(),
         masteryScore: 0,
         srsInterval: 0,
@@ -109,8 +119,17 @@ export function useVocabulary() {
       const batch = writeBatch(db);
       items.forEach(item => {
         const docRef = doc(collection(db, COLLECTION_NAME));
+        
+        // Sanitization for bulk items
+        const sanitizedItem = Object.entries(item).reduce((acc, [key, value]) => {
+          if (value !== undefined) {
+            acc[key] = value;
+          }
+          return acc;
+        }, {} as any);
+
         batch.set(docRef, {
-          ...item,
+          ...sanitizedItem,
           createdAt: serverTimestamp(),
           masteryScore: 0,
           srsInterval: 0,
@@ -189,7 +208,16 @@ export function useVocabulary() {
   const updateVocab = async (id: string, updates: Partial<VocabularyItem>) => {
     try {
       const { id: _, isSelected: __, ...safeUpdates } = updates as any;
-      await updateDoc(doc(db, COLLECTION_NAME, id), safeUpdates);
+      
+      // Sanitize updates to remove undefined
+      const sanitizedUpdates = Object.entries(safeUpdates).reduce((acc, [key, value]) => {
+        if (value !== undefined) {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as any);
+
+      await updateDoc(doc(db, COLLECTION_NAME, id), sanitizedUpdates);
     } catch (error) {
       console.error("Update failed:", error);
     }

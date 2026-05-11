@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Timer, Trophy, AlertCircle, Volume2, Plus, Search, BookOpen, Brain, Trash2, ChevronRight, X, Sparkles, Filter, LayoutGrid, List, TrendingUp, Calendar, Loader2, FileText, Upload, Check, Clock, Music, Headphones, Flame, Bell } from 'lucide-react';
+import { Timer, Trophy, AlertCircle, Volume2, Plus, Search, BookOpen, Brain, Trash2, ChevronRight, X, Sparkles, Filter, LayoutGrid, List, TrendingUp, Calendar, Loader2, FileText, Upload, Check, Clock, Music, Headphones, Flame, Bell, FileSpreadsheet } from 'lucide-react';
+import { read, utils } from 'xlsx';
 import { useVocabulary } from './hooks/useVocabulary';
 import { useStreak } from './hooks/useStreak';
 import { ProficiencyLevel, VocabularyItem, PracticeMode } from './types';
 import QuizEngine from './components/Quiz/QuizEngine';
 import AudioManager from './components/Audio/AudioManager';
+import SrsStats from './components/Stats/SrsStats';
 import { cn, getLevelColor } from './lib/utils';
 import { speakChinese } from './lib/tts';
 
@@ -36,6 +38,103 @@ export default function App() {
   const [sortBy, setSortBy] = useState<'newest' | 'mastery' | 'alphabetical'>('newest');
   const [showDueOnly, setShowDueOnly] = useState(false);
   const [viewMode, setViewMode] = useState<'card' | 'compact'>('card');
+  const [isStatsOpen, setIsStatsOpen] = useState(false);
+  const excelInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsParsingBulk(true);
+    setErrorMessage(null);
+
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = read(data);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = utils.sheet_to_json(worksheet) as any[];
+
+      if (jsonData.length === 0) {
+        throw new Error("File Excel không có dữ liệu.");
+      }
+
+      // Detect pillars/headers
+      const firstRow = jsonData[0];
+      const keys = Object.keys(firstRow);
+      
+      // Look for specifically requested category/level column
+      const levelKey = keys.find(k => 
+        k.toLowerCase().includes('cấp độ') || 
+        k.toLowerCase().includes('trình độ') || 
+        k.toLowerCase().includes('level') ||
+        k.toLowerCase().includes('dangdai') ||
+        k.toLowerCase().includes('đương đại') ||
+        k.includes('當代')
+      );
+
+      if (!levelKey) {
+        throw new Error("Không tìm thấy cột 'Cấp độ' (當代1-6) trong file. Để hệ thống phân loại chính xác, file Excel của bạn bắt buộc phải có cột này.");
+      }
+
+      // Check if word/hanzi and meaning columns exist
+      const wordKey = keys.find(k => k.toLowerCase().includes('từ') || k.toLowerCase().includes('word') || k.toLowerCase().includes('hanzi') || k.toLowerCase().includes('chữ'));
+      const meaningKey = keys.find(k => k.toLowerCase().includes('nghĩa') || k.toLowerCase().includes('meaning') || k.toLowerCase().includes('giải thích'));
+      const pinyinKey = keys.find(k => k.toLowerCase().includes('pinyin') || k.toLowerCase().includes('phiên âm') || k.toLowerCase().includes('đọc'));
+
+      if (!wordKey || !meaningKey) {
+        throw new Error("File Excel phải có ít nhất các cột: Chữ Hán, Ý nghĩa và Cấp độ.");
+      }
+
+      const items = jsonData.map(row => {
+        let rawLevel = String(row[levelKey] || '').trim();
+        // Standardize level mapping
+        let level: ProficiencyLevel = '當代1';
+        if (rawLevel.includes('1')) level = '當代1';
+        else if (rawLevel.includes('2')) level = '當代2';
+        else if (rawLevel.includes('3')) level = '當代3';
+        else if (rawLevel.includes('4')) level = '當代4';
+        else if (rawLevel.includes('5')) level = '當代5';
+        else if (rawLevel.includes('6')) level = '當代6';
+        else {
+          // If level is invalid but row has data, we might want to skip or default. 
+          // The user said "if not there, cannot upload", so we should be strict if it's missing entirely.
+          if (!rawLevel) return null;
+        }
+
+        return {
+          word: String(row[wordKey] || '').trim(),
+          pinyin: String(row[pinyinKey] || '').trim(),
+          meaning: String(row[meaningKey] || '').trim(),
+          level,
+          category: 'Excel Import',
+          tags: [],
+          exampleSentence: String(row['Example'] || row['Ví dụ'] || row['Câu ví dụ'] || ''),
+          notes: String(row['Notes'] || row['Ghi chú'] || row['Mẹo nhớ'] || '')
+        };
+      }).filter((item): item is any => item !== null && item.word !== '');
+
+      if (items.length > 0) {
+        await addBulkVocab(items);
+        setSuccessMessage(`Đã nhập thành công ${items.length} từ vựng từ Excel!`);
+        setTimeout(() => setSuccessMessage(null), 4000);
+        setIsBulkImporting(false);
+        
+        // Reset filters
+        setSearchTerm('');
+        setSelectedLevel('All');
+        setSelectedCategory('All');
+        setSortBy('newest');
+      } else {
+        throw new Error("Không tìm thấy dữ liệu từ vựng hợp lệ trong file.");
+      }
+    } catch (err: any) {
+      console.error("Excel import failed:", err);
+      setErrorMessage(err.message || "Lỗi khi xử lý file Excel. Vui lòng kiểm tra định dạng.");
+    } finally {
+      setIsParsingBulk(false);
+      if (excelInputRef.current) excelInputRef.current.value = '';
+    }
+  };
 
   // Form state
   const [newWord, setNewWord] = useState('');
@@ -45,6 +144,7 @@ export default function App() {
   const [newTags, setNewTags] = useState('');
   const [newLevel, setNewLevel] = useState<ProficiencyLevel>('當代1');
   const [newCategory, setNewCategory] = useState('Chưa phân loại');
+  const [newNotes, setNewNotes] = useState('');
   const [newColor, setNewColor] = useState<string | undefined>(undefined);
 
   const PREDEFINED_COLORS = [
@@ -101,6 +201,7 @@ export default function App() {
         level: newLevel,
         exampleSentence: newExample,
         category: newCategory,
+        notes: newNotes,
         tags: newTags.split(',').map(tag => tag.trim()).filter(Boolean),
         color: newColor,
       });
@@ -113,6 +214,7 @@ export default function App() {
       setNewPinyin('');
       setNewMeaning('');
       setNewExample('');
+      setNewNotes('');
       setNewTags('');
       setNewColor(undefined);
       setIsAdding(false);
@@ -343,12 +445,14 @@ export default function App() {
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
                 {[
-                  { id: 'standard', title: 'Tiêu chuẩn', icon: Brain, desc: '5 câu hỏi ngẫu nhiên từ kho của bạn.', color: 'text-indigo-400' },
+                  { id: 'standard', title: 'Tiêu chuẩn', icon: Brain, desc: 'Hỗn hợp các loại bài tập ngẫu nhiên.', color: 'text-indigo-400' },
                   { id: 'flashcards', title: 'Flashcards', icon: BookOpen, desc: 'Học bằng cách lật thẻ ghi nhớ.', color: 'text-fuchsia-400' },
-                  { id: 'typing', title: 'Gõ chữ', icon: FileText, desc: 'Nhập từ tiếng Trung từ nghĩa tiếng Việt.', color: 'text-cyan-400' },
-                  { id: 'srs', title: `Ôn tập SRS (${dueVocabCount})`, icon: Sparkles, desc: 'Tự động chọn các từ đã đến hạn ôn tập.', color: 'text-emerald-400', disabled: dueVocabCount === 0 },
-                  { id: 'timed', title: 'Siêu tốc', icon: Timer, desc: 'Trả lời nhanh trong 60 giây.', color: 'text-amber-400' },
-                  { id: 'mistake-review', title: 'Ôn tập sai', icon: AlertCircle, desc: 'Tập trung vào các từ bạn đang yếu.', color: 'text-red-400' }
+                  { id: 'typing', title: 'Gõ chữ', icon: FileText, desc: 'Nhập từ tiếng Trung từ ý nghĩa.', color: 'text-cyan-400' },
+                  { id: 'tone-master', title: 'Luyện Thanh điệu', icon: Music, desc: 'Chuyên biệt cho việc học cách đọc pinyin.', color: 'text-violet-400' },
+                  { id: 'ear-training', title: 'Luyện Nghe', icon: Headphones, desc: 'Nghe phát âm và chọn ý nghĩa chính xác.', color: 'text-sky-400' },
+                  { id: 'srs', title: `Sống sót SRS (${dueVocabCount})`, icon: Sparkles, desc: 'Ôn tập các từ đã đến hạn ghi nhớ.', color: 'text-emerald-400', disabled: dueVocabCount === 0 },
+                  { id: 'timed', title: 'Siêu tốc', icon: Timer, desc: 'Trả lời nhanh nhiều nhất trong 60 giây.', color: 'text-amber-400' },
+                  { id: 'mistake-review', title: 'Khắc phục lỗi', icon: AlertCircle, desc: 'Tập trung vào các từ bạn thường sai.', color: 'text-red-400' }
                 ].map((mode) => (
                   <button
                     key={mode.id}
@@ -361,8 +465,8 @@ export default function App() {
                     className={cn(
                       "flex flex-col items-center p-6 bg-slate-950 border border-slate-800 rounded-3xl transition-all text-center group",
                       (mode as any).disabled 
-                        ? "opacity-50 cursor-not-allowed" 
-                        : "hover:border-indigo-500/50 hover:bg-slate-800/20 shadow-hover group"
+                         ? "opacity-50 cursor-not-allowed" 
+                         : "hover:border-indigo-500/50 hover:bg-slate-800/20 shadow-hover group"
                     )}
                   >
                     <mode.icon className={cn("mb-4 group-hover:scale-110 transition-transform", mode.color)} size={32} />
@@ -391,6 +495,16 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Advanced Stats Modal */}
+      <AnimatePresence>
+        {isStatsOpen && (
+          <SrsStats 
+            vocabulary={vocabulary} 
+            onClose={() => setIsStatsOpen(false)} 
+          />
+        )}
+      </AnimatePresence>
+
       <main className="max-w-7xl mx-auto px-4 md:px-6 py-8 md:py-12">
         {/* Simple & Modern Dashboard */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 mb-16">
@@ -408,6 +522,8 @@ export default function App() {
               <span className="inline-block px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-bold uppercase tracking-widest rounded-full mb-6">
                 Learning Dashboard
               </span>
+              
+
               <h2 className="text-4xl md:text-7xl font-black text-white leading-[1.1] mb-8">
                 Học tiếng Đài<br />
                 <span className="text-slate-500">Dễ dàng hơn.</span>
@@ -431,6 +547,13 @@ export default function App() {
                     <span className="hidden sm:inline">Thêm từ</span>
                   </button>
                   <button 
+                    onClick={() => setIsBulkImporting(true)}
+                    className="px-6 py-5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-2xl md:rounded-3xl font-bold hover:bg-indigo-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                  >
+                    <FileSpreadsheet size={20} />
+                    <span className="hidden sm:inline">Nhập hàng loạt</span>
+                  </button>
+                  <button 
                     onClick={() => setIsAudioBankOpen(true)}
                     className="px-6 py-5 bg-linear-to-br from-indigo-500/10 to-fuchsia-500/10 border border-slate-800 text-fuchsia-400 rounded-2xl md:rounded-3xl font-bold hover:border-fuchsia-500/30 hover:bg-slate-900 transition-all flex items-center justify-center gap-2"
                   >
@@ -445,10 +568,16 @@ export default function App() {
           {/* Key Stats Cards */}
           <div className="md:col-span-12 lg:col-span-4 flex flex-col gap-6">
             {/* Minimal Stat Card */}
-            <div className="flex-1 bg-slate-900 border border-slate-800 rounded-[32px] p-8 flex flex-col justify-between hover:border-slate-700 transition-colors">
+            <div className="flex-1 bg-slate-900 border border-slate-800 rounded-[32px] p-8 flex flex-col justify-between hover:border-slate-700 transition-colors group/card relative">
               <div className="flex items-center justify-between">
                 <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tiến độ tổng quát</h3>
-                <TrendingUp size={16} className="text-slate-600" />
+                <button 
+                  onClick={() => setIsStatsOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-bold rounded-full hover:bg-indigo-500 hover:text-white transition-all shadow-indigo-500/20 shadow-lg"
+                >
+                  <TrendingUp size={12} />
+                  Chi tiết
+                </button>
               </div>
               <div>
                 <div className="flex items-baseline gap-2">
@@ -948,6 +1077,25 @@ export default function App() {
                                   </div>
                                 </div>
                               )}
+
+                              {/* Mnemonics / Notes Section */}
+                              <div className="mt-3 py-3 px-4 bg-indigo-500/5 rounded-2xl border border-indigo-500/10">
+                                <div className="flex items-center justify-between mb-2">
+                                  <p className="text-[10px] text-indigo-400 uppercase tracking-[0.2em] font-black">Ghi chú & Mẹo nhớ</p>
+                                  <Sparkles size={12} className="text-indigo-400/50" />
+                                </div>
+                                <textarea
+                                  value={item.notes || ''}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    updateVocab(item.id, { notes: e.target.value });
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  placeholder="Thêm cách nhớ từ, mẹo học hoặc ghi chú cá nhân..."
+                                  className="w-full bg-transparent text-xs text-slate-300 border-none outline-none resize-none placeholder:text-slate-600 font-medium leading-relaxed"
+                                  rows={2}
+                                />
+                              </div>
                             </div>
                           </motion.div>
                         )}
@@ -1267,7 +1415,16 @@ export default function App() {
                     value={newExample}
                     onChange={(e) => setNewExample(e.target.value)}
                     className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm min-h-[80px] font-zh"
-                    placeholder="VD: 我很喜歡學習漢語。"
+                    placeholder="VD: 我 rất thích học Hán ngữ."
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Ghi chú & Mẹo nhớ (Mnemonics)</label>
+                  <textarea 
+                    value={newNotes}
+                    onChange={(e) => setNewNotes(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm min-h-[80px] text-indigo-300"
+                    placeholder="VD: Chữ 'Học' có bộ 'Tử' là đứa trẻ đang ngồi học dưới mái nhà..."
                   />
                 </div>
                 <div>
@@ -1394,15 +1551,56 @@ export default function App() {
                 )}
                 <div className="mb-4">
                   <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Dữ liệu từ vựng</label>
-                  <textarea 
-                    placeholder="Ví dụ:
+                  
+                  <div className="flex gap-4 mb-4">
+                    <div className="flex-1 p-4 bg-slate-950 border border-slate-800 rounded-2xl border-dashed flex flex-col items-center justify-center gap-3 group hover:border-indigo-500/50 transition-all">
+                      <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
+                        <FileSpreadsheet size={24} />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs font-bold text-slate-300">Tải lên file Excel</p>
+                        <p className="text-[10px] text-slate-500 mt-1">Yêu cầu cột cấp độ (當代1-6)</p>
+                      </div>
+                      <input 
+                        type="file" 
+                        accept=".xlsx, .xls, .csv" 
+                        ref={excelInputRef}
+                        onChange={handleExcelImport}
+                        className="hidden" 
+                      />
+                      <button 
+                        onClick={() => excelInputRef.current?.click()}
+                        className="px-4 py-1.5 bg-indigo-600 text-white text-[10px] font-black rounded-lg hover:bg-indigo-500 transition-all uppercase"
+                      >
+                        Chọn file
+                      </button>
+                    </div>
+
+                    <div className="flex-1 flex flex-col justify-center p-4 bg-slate-950 border border-slate-800 rounded-2xl">
+                      <h4 className="text-[10px] font-bold text-indigo-400 uppercase mb-2">Hướng dẫn Excel</h4>
+                      <ul className="text-[9px] text-slate-500 space-y-1 ml-3 list-disc">
+                        <li>Cột 1: Chữ Hán (Word)</li>
+                        <li>Cột 2: Phiên âm (Pinyin)</li>
+                        <li>Cột 3: Ý nghĩa (Meaning)</li>
+                        <li className="text-indigo-300 font-bold">Cột 4: Cấp độ (Level) - BẮT BUỘC</li>
+                        <li>Giá trị cấp độ: 當代1, 當代2...</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <div className="absolute left-4 top-4 pointer-events-none opacity-20">
+                      <FileText size={24} />
+                    </div>
+                    <textarea 
+                      placeholder="Hoặc dán văn bản tại đây:
 学习 - xué xí - học tập
-挑战 - tiǎo zhàn - thách thức
-Hoặc dán ghi chú tiếng Trung của bạn tại đây..."
-                    value={bulkText}
-                    onChange={(e) => setBulkText(e.target.value)}
-                    className="w-full h-64 bg-slate-950 border border-slate-800 rounded-2xl p-4 text-slate-200 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none font-zh text-sm"
-                  />
+挑战 - tiǎo zhàn - thách thức"
+                      value={bulkText}
+                      onChange={(e) => setBulkText(e.target.value)}
+                      className="w-full h-40 bg-slate-950 border border-slate-800 rounded-2xl p-4 pl-12 text-slate-200 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none font-zh text-sm"
+                    />
+                  </div>
                   <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-500">
                     <BookOpen size={12} className="text-indigo-400" />
                     <span>Nhập định dạng: Từ - Pinyin - Nghĩa (mỗi từ một dòng)</span>
@@ -1440,7 +1638,8 @@ Hoặc dán ghi chú tiếng Trung của bạn tại đây..."
                             level: '當代1' as ProficiencyLevel,
                             category: 'custom' as string,
                             tags: [],
-                            exampleSentence: ''
+                            exampleSentence: '',
+                            notes: parts[3] || ''
                           };
                         }).filter(item => item.word);
 
