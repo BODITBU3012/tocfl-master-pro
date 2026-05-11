@@ -41,17 +41,33 @@ export function useVocabulary() {
       snapshot.forEach((doc) => {
         // Use estimate to get a value for serverTimestamp during local writes
         const data = doc.data({ serverTimestamps: 'estimate' });
+        
+        // Robust timestamp conversion
+        const toMillis = (ts: any) => {
+          if (!ts) return Date.now();
+          if (ts instanceof Timestamp) return ts.toMillis();
+          if (typeof ts.toMillis === 'function') return ts.toMillis();
+          if (typeof ts.seconds === 'number') return ts.seconds * 1000;
+          if (typeof ts === 'number') return ts;
+          return Date.now();
+        };
+
         items.push({
           ...data,
           id: doc.id,
-          createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : (data.createdAt || Date.now()),
-          lastReviewedAt: data.lastReviewedAt instanceof Timestamp ? data.lastReviewedAt.toMillis() : data.lastReviewedAt,
-          nextReviewAt: data.nextReviewAt instanceof Timestamp ? data.nextReviewAt.toMillis() : data.nextReviewAt,
+          createdAt: toMillis(data.createdAt),
+          lastReviewedAt: data.lastReviewedAt ? toMillis(data.lastReviewedAt) : undefined,
+          nextReviewAt: data.nextReviewAt ? toMillis(data.nextReviewAt) : undefined,
         } as VocabularyItem);
       });
       
-      // Sort on client side
-      items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      // Sort on client side: newest first
+      // Ensure we are comparing numbers
+      items.sort((a, b) => {
+        const timeA = typeof a.createdAt === 'number' ? a.createdAt : 0;
+        const timeB = typeof b.createdAt === 'number' ? b.createdAt : 0;
+        return timeB - timeA;
+      });
       
       setVocabulary(items);
       setIsLoaded(true);

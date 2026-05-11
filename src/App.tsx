@@ -109,13 +109,14 @@ export default function App() {
       setNewColor(undefined);
       setIsAdding(false);
       
-      // Reset filters so the new word is visible
+      // Reset filters and sort to newest so the new word is visible at the top
       setSearchTerm('');
       setSelectedLevel('All');
       setSelectedCategory('All');
       setSelectedColor('All');
       setSelectedTags([]);
       setShowDueOnly(false);
+      setSortBy('newest');
     } catch (err) {
       console.error("Failed to add vocab", err);
     } finally {
@@ -1394,9 +1395,18 @@ Hoặc dán ghi chú tiếng Trung của bạn tại đây..."
                         }).filter(item => item.word);
 
                         if (items.length > 0) {
-                          addBulkVocab(items);
+                          await addBulkVocab(items);
                           setIsBulkImporting(false);
                           setBulkText('');
+                          
+                          // Reset filters and sort to newest
+                          setSearchTerm('');
+                          setSelectedLevel('All');
+                          setSelectedCategory('All');
+                          setSelectedColor('All');
+                          setSelectedTags([]);
+                          setShowDueOnly(false);
+                          setSortBy('newest');
                         }
                       } finally {
                         setIsParsingBulk(false);
