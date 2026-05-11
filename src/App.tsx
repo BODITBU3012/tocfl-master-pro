@@ -38,10 +38,17 @@ export default function App() {
   const [selectedWordType, setSelectedWordType] = useState<string>('All');
   const [selectedColor, setSelectedColor] = useState<string | 'All'>('All');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
+  // Automatically reset lesson filter when level changes
+  useEffect(() => {
+    setSelectedLesson('All');
+  }, [selectedLevel]);
+
   const [sortBy, setSortBy] = useState<'newest' | 'mastery' | 'alphabetical'>('newest');
   const [showDueOnly, setShowDueOnly] = useState(false);
   const [viewMode, setViewMode] = useState<'card' | 'compact'>('card');
   const [isStatsOpen, setIsStatsOpen] = useState(false);
+  const [vocabToDelete, setVocabToDelete] = useState<VocabularyItem | null>(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const excelInputRef = useRef<HTMLInputElement>(null);
   const levelScrollRef = useRef<HTMLDivElement>(null);
@@ -627,7 +634,8 @@ export default function App() {
                          'tone-selection': 'Chọn thanh điệu',
                          'audio-to-meaning': 'Luyện nghe',
                          'hanzi-to-pinyin': 'Hán tự -> Pinyin',
-                         'sentence-translation': 'Dịch câu'
+                         'matching': 'Ghép cặp',
+                         'sentence-completion': 'Hoàn thành câu'
                        };
                        
                        return (
@@ -643,12 +651,13 @@ export default function App() {
                              }
                            }}
                            className={cn(
-                             "px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all border",
+                             "px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all border flex items-center gap-1.5",
                              isSelected 
-                               ? "bg-indigo-600 border-indigo-500 text-white" 
-                               : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300"
+                               ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20" 
+                               : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300 hover:border-slate-700"
                            )}
                          >
+                           {isSelected && <Check size={10} strokeWidth={4} />}
                            {labelMap[type] || type}
                          </button>
                        );
@@ -1304,7 +1313,7 @@ export default function App() {
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
-                          removeVocab(item.id);
+                          setVocabToDelete(item);
                         }}
                         className="opacity-0 group-hover:opacity-100 p-1 text-slate-600 hover:text-red-400 transition-all"
                       >
@@ -1527,7 +1536,7 @@ export default function App() {
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
-                          removeVocab(item.id);
+                          setVocabToDelete(item);
                         }}
                         className="p-2 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-red-400 transition-all"
                       >
@@ -2079,6 +2088,46 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {vocabToDelete && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl text-center"
+            >
+              <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center text-red-500 mx-auto mb-6">
+                <Trash2 size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-slate-100 mb-2">Xác nhận xóa?</h3>
+              <p className="text-slate-400 text-sm mb-8">
+                Bạn có chắc chắn muốn xóa từ <span className="text-red-400 font-bold font-display-zh">{vocabToDelete.word}</span> không? Hành động này không thể hoàn tác.
+              </p>
+              
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setVocabToDelete(null)}
+                  className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold transition-all"
+                >
+                  Hủy
+                </button>
+                <button 
+                  onClick={() => {
+                    removeVocab(vocabToDelete.id);
+                    setVocabToDelete(null);
+                  }}
+                  className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold shadow-lg shadow-red-600/20 transition-all"
+                >
+                  Xóa ngay
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

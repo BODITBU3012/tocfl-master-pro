@@ -124,18 +124,35 @@ function generateLocalVocabQuestion(pool: VocabularyItem[], target: VocabularyIt
     };
   }
 
-  if (type === 'sentence-translation' && target.exampleSentence) {
+  if (type === 'matching') {
+    const pairs = [target, ...distractors].sort(() => 0.5 - Math.random());
+    const matches = pairs.map(p => ({ word: p.word, meaning: p.meaning }));
     return {
       id: Math.random().toString(36).substr(2, 9),
       vocabId: target.id,
-      type: 'sentence-translation',
-      prompt: target.exampleTranslation ? `Dịch sang tiếng Trung: "${target.exampleTranslation}"` : `Dịch sang tiếng Trung: "${target.meaning}" (Ví dụ với từ "${target.word}")`,
-      correctAnswer: target.exampleSentence,
+      type: 'matching',
+      prompt: 'Ghép các từ Hán tự với ý nghĩa tương ứng',
+      correctAnswer: JSON.stringify(matches),
+      options: matches.map(m => m.word).sort(() => 0.5 - Math.random()),
       level: target.level,
-      explanation: `Câu đúng là: "${target.exampleSentence}"`
+      explanation: 'Tuyệt vời! Bạn đã ghép đúng tất cả các cặp từ.'
     };
   }
 
+  if (type === 'sentence-completion' && target.exampleSentence) {
+    const hidden = target.word;
+    const parts = target.exampleSentence.split(hidden);
+    return {
+      id: Math.random().toString(36).substr(2, 9),
+      vocabId: target.id,
+      type: 'sentence-completion',
+      prompt: target.exampleTranslation || `Hoàn thành câu: "${target.exampleSentence.replace(hidden, '____')}"`,
+      correctAnswer: hidden,
+      options: [hidden, ...distractors.map(d => d.word)].sort(() => 0.5 - Math.random()),
+      level: target.level,
+      explanation: `Câu hoàn chỉnh: "${target.exampleSentence}"`
+    };
+  }
 
   // Fallback to simple multi-choice if no sentence or for reorder
   const options = [target.word, ...distractors.map(d => d.word)].sort(() => 0.5 - Math.random());
@@ -165,6 +182,17 @@ export default function QuizEngine({ vocabulary, mode, preferredTypes, onAnswer,
   const [isFlipped, setIsFlipped] = useState(false);
   const [typingInput, setTypingInput] = useState('');
   const [isLastAnswerCorrect, setIsLastAnswerCorrect] = useState<boolean | null>(null);
+  const [matchingState, setMatchingState] = useState<{
+    leftSelected: string | null;
+    rightSelected: string | null;
+    matches: Record<string, string>;
+    shuffledMeanings: string[];
+  }>({
+    leftSelected: null,
+    rightSelected: null,
+    matches: {},
+    shuffledMeanings: []
+  });
 
   const currentQuestion = questions[currentStep];
 
@@ -206,7 +234,7 @@ export default function QuizEngine({ vocabulary, mode, preferredTypes, onAnswer,
         // Use preferred types if available, otherwise default set
         questionTypes = (preferredTypes && preferredTypes.length > 0) 
           ? preferredTypes 
-          : ['multiple-choice', 'fill-in-the-blank', 'hanzi-to-pinyin', 'tone-selection', 'audio-to-meaning', 'typing', 'sentence-translation'];
+          : ['multiple-choice', 'fill-in-the-blank', 'hanzi-to-pinyin', 'tone-selection', 'audio-to-meaning', 'typing', 'matching', 'sentence-completion'];
       }
       
       try {
@@ -245,9 +273,9 @@ export default function QuizEngine({ vocabulary, mode, preferredTypes, onAnswer,
             let type = availableTypes[i % availableTypes.length];
             
             // Fallback if no sentence for sentence types
-            if ((type === 'sentence-translation' || type === 'fill-in-the-blank') && !v.exampleSentence) {
+            if ((type === 'fill-in-the-blank' || type === 'sentence-completion') && !v.exampleSentence) {
                // Try another type from availableTypes that isn't sentence-based
-               const betterType = availableTypes.find(t => t !== 'sentence-translation' && t !== 'fill-in-the-blank');
+               const betterType = availableTypes.find(t => t !== 'fill-in-the-blank' && t !== 'sentence-completion');
                type = betterType || 'multiple-choice';
             }
             
@@ -272,6 +300,16 @@ export default function QuizEngine({ vocabulary, mode, preferredTypes, onAnswer,
     setIsAnswered(false);
     setIsLastAnswerCorrect(null);
     setIsFlipped(false);
+
+    if (questions[currentStep]?.type === 'matching') {
+      const parsed = JSON.parse(questions[currentStep].correctAnswer);
+      setMatchingState({
+        leftSelected: null,
+        rightSelected: null,
+        matches: {},
+        shuffledMeanings: parsed.map((p: any) => p.meaning).sort(() => 0.5 - Math.random())
+      });
+    }
   }, [currentStep, questions]);
 
   useEffect(() => {
@@ -293,6 +331,36 @@ export default function QuizEngine({ vocabulary, mode, preferredTypes, onAnswer,
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentQuestion, isFlipped, isAnswered]);
 
+  const handleMatchingSelection = (id: string, side: 'left' | 'right') => {
+    if (isAnswered) return;
+
+    setMatchingState(prev => {
+      const newState = { ...prev };
+      if (side === 'left') newState.leftSelected = id;
+      else newState.rightSelected = id;
+
+      if (newState.leftSelected && newState.rightSelected) {
+        const parsed = JSON.parse(currentQuestion.correctAnswer);
+        const correctMeaning = parsed.find((p: any) => p.word === newState.leftSelected)?.meaning;
+        
+        if (correctMeaning === newState.rightSelected) {
+          newState.matches[newState.leftSelected] = newState.rightSelected;
+          newState.leftSelected = null;
+          newState.rightSelected = null;
+          
+          if (Object.keys(newState.matches).length === parsed.length) {
+            setTimeout(() => handleAnswer('correct'), 500);
+          }
+        } else {
+          // Play a small shake or error effect if possible
+          newState.leftSelected = null;
+          newState.rightSelected = null;
+        }
+      }
+      return newState;
+    });
+  };
+
   const handleAnswer = (answer: string) => {
     try {
       if (isAnswered) return;
@@ -304,7 +372,7 @@ export default function QuizEngine({ vocabulary, mode, preferredTypes, onAnswer,
 
       let isCorrect = false;
       
-      if (current.type === 'flashcard') {
+      if (current.type === 'flashcard' || current.type === 'matching') {
         isCorrect = answer === 'correct';
       } else {
         isCorrect = String(answer).trim() === String(current.correctAnswer).trim();
@@ -521,18 +589,21 @@ export default function QuizEngine({ vocabulary, mode, preferredTypes, onAnswer,
                     </div>
                   ) : currentQuestion.prompt}
                 </h3>
-                  <button 
-                    onClick={() => speakChinese(currentQuestion.type === 'audio-to-meaning' ? (currentQuestion.vocabId ? vocabulary.find(v => v.id === currentQuestion.vocabId)?.word || currentQuestion.prompt : currentQuestion.prompt) : currentQuestion.prompt)}
-                    className="p-2.5 rounded-full bg-slate-800 border border-slate-700 text-indigo-400 hover:bg-indigo-500/10 hover:border-indigo-500/30 transition-all md:p-4 shrink-0"
-                    title="Listen"
-                  >
-                    <Volume2 size={20} className="md:w-6 md:h-6" />
-                  </button>
+                  {currentQuestion.type !== 'matching' && (
+                    <button 
+                      onClick={() => speakChinese(currentQuestion.type === 'audio-to-meaning' ? (currentQuestion.vocabId ? vocabulary.find(v => v.id === currentQuestion.vocabId)?.word || currentQuestion.prompt : currentQuestion.prompt) : currentQuestion.prompt)}
+                      className="p-2.5 rounded-full bg-slate-800 border border-slate-700 text-indigo-400 hover:bg-indigo-500/10 hover:border-indigo-500/30 transition-all md:p-4 shrink-0"
+                      title="Listen"
+                    >
+                      <Volume2 size={20} className="md:w-6 md:h-6" />
+                    </button>
+                  )}
               </div>
 
               {/* Multiple Choice & Selection Types */}
               {(currentQuestion.type === 'multiple-choice' || 
                 currentQuestion.type === 'tone-selection' || 
+                currentQuestion.type === 'sentence-completion' ||
                 currentQuestion.type === 'audio-to-meaning' || 
                 currentQuestion.type === 'hanzi-to-pinyin') && (
                 <div className="grid gap-3">
@@ -555,10 +626,63 @@ export default function QuizEngine({ vocabulary, mode, preferredTypes, onAnswer,
                       >
                         <span className="font-medium text-base md:text-lg font-zh">{option}</span>
                         {isAnswered && isCorrect && <Check size={18} className="md:w-5 md:h-5" />}
-                        {isAnswered && isSelected && !isCorrect && <X size={18} className="md:w-5 md:h-5" />}
+                        {isSelected && !isCorrect && isAnswered && <X size={18} className="md:w-5 md:h-5" />}
                       </button>
                     );
                   })}
+                </div>
+              )}
+
+              {/* Matching Question */}
+              {currentQuestion.type === 'matching' && (
+                <div className="grid grid-cols-2 gap-8 md:gap-12">
+                   <div className="space-y-3">
+                     <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-4">Hán tự</p>
+                     {(currentQuestion.options || []).map((word) => {
+                       const isMatched = !!matchingState.matches[word];
+                       const isSelected = matchingState.leftSelected === word;
+                       
+                       return (
+                         <button
+                           key={word}
+                           disabled={isMatched || isAnswered}
+                           onClick={() => handleMatchingSelection(word, 'left')}
+                           className={cn(
+                             "w-full p-4 rounded-xl border transition-all text-center font-zh text-lg",
+                             isMatched ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-400 opacity-50" : 
+                             isSelected ? "border-indigo-500 bg-indigo-500/10 text-indigo-400 shadow-lg shadow-indigo-500/10" :
+                             "border-slate-800 bg-slate-950/50 hover:border-slate-700"
+                           )}
+                         >
+                           {word}
+                         </button>
+                       );
+                     })}
+                   </div>
+
+                   <div className="space-y-3">
+                     <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-4">Ý nghĩa</p>
+                     {matchingState.shuffledMeanings.map((meaning) => {
+                       const isMatched = Object.values(matchingState.matches).includes(meaning);
+                       const isSelected = matchingState.rightSelected === meaning;
+                       
+                       return (
+                         <button
+                           key={meaning}
+                           disabled={isMatched || isAnswered}
+                           onClick={() => handleMatchingSelection(meaning, 'right')}
+                           className={cn(
+                             "w-full p-4 rounded-xl border transition-all text-center text-sm font-medium",
+                             isMatched ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-400 opacity-50" : 
+                             isSelected ? "border-indigo-500 bg-indigo-500/10 text-indigo-400 shadow-lg shadow-indigo-500/10" :
+                             "border-slate-800 bg-slate-950/50 hover:border-slate-700"
+                           )}
+                         >
+                           {meaning}
+                         </button>
+                       );
+                     })}
+                   </div>
                 </div>
               )}
 
@@ -629,8 +753,8 @@ export default function QuizEngine({ vocabulary, mode, preferredTypes, onAnswer,
                 </div>
               )}
 
-              {/* Typing Question & Sentence Translation */}
-              {(currentQuestion.type === 'typing' || currentQuestion.type === 'sentence-translation') && (
+              {/* Typing Question */}
+              {currentQuestion.type === 'typing' && (
                 <div className="flex flex-col gap-6">
                   {!isAnswered ? (
                     <form 
@@ -646,8 +770,8 @@ export default function QuizEngine({ vocabulary, mode, preferredTypes, onAnswer,
                         autoFocus
                         value={typingInput}
                         onChange={(e) => setTypingInput(e.target.value)}
-                        placeholder={currentQuestion.type === 'sentence-translation' ? "Nhập câu tiếng Trung hoàn chỉnh (Phồn thể)..." : "Gõ bằng chữ Hán..."}
-                        rows={currentQuestion.type === 'sentence-translation' ? 3 : 1}
+                        placeholder="Gõ bằng chữ Hán..."
+                        rows={1}
                         className="w-full p-6 bg-slate-950 border-2 border-slate-800 rounded-3xl text-xl md:text-2xl font-bold text-slate-100 focus:border-indigo-500 transition-all outline-hidden text-center resize-none"
                       />
                       <button

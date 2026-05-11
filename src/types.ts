@@ -37,7 +37,7 @@ export interface AudioLesson {
 
 export type PracticeMode = 'standard' | 'timed' | 'mistake-review' | 'flashcards' | 'typing' | 'srs' | 'tone-master' | 'ear-training';
 
-export type QuestionType = 'multiple-choice' | 'fill-in-the-blank' | 'flashcard' | 'typing' | 'tone-selection' | 'audio-to-meaning' | 'hanzi-to-pinyin' | 'sentence-translation';
+export type QuestionType = 'multiple-choice' | 'fill-in-the-blank' | 'flashcard' | 'typing' | 'tone-selection' | 'audio-to-meaning' | 'hanzi-to-pinyin' | 'matching' | 'sentence-completion';
 
 export const ALL_QUESTION_TYPES: QuestionType[] = [
   'multiple-choice', 
@@ -45,19 +45,22 @@ export const ALL_QUESTION_TYPES: QuestionType[] = [
   'typing', 
   'tone-selection', 
   'audio-to-meaning', 
-  'hanzi-to-pinyin', 
-  'sentence-translation'
+  'hanzi-to-pinyin',
+  'matching',
+  'sentence-completion'
 ];
 
 export interface QuizQuestion {
   id: string;
   type: QuestionType;
   prompt: string;
-  options?: string[]; // For multiple choice
+  options?: string[]; // For multiple choice and matching words
+  meaningOptions?: string[]; // For matching meanings
   correctAnswer: string; // Correct answer for the question
   explanation?: string;
   pinyin?: string;
   wordType?: string;
   vocabId?: string;
   level: ProficiencyLevel;
+  matchingPairs?: { word: string; meaning: string }[]; // For matching logic
 }
