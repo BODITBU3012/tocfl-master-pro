@@ -172,9 +172,33 @@ export default function App() {
         };
       }).filter((item): item is any => item !== null && item.word !== '');
 
-      if (items.length > 0) {
-        await addBulkVocab(items);
-        setSuccessMessage(`Đã nhập thành công ${items.length} từ vựng từ Excel!`);
+      // 1. Filter out duplicates within the uploaded file itself
+      const uniqueInFile = items.reduce((acc: any[], current) => {
+        const isDuplicateInAcc = acc.some(item => 
+          item.word.trim().toLowerCase() === current.word.trim().toLowerCase() && 
+          item.meaning.trim().toLowerCase() === current.meaning.trim().toLowerCase()
+        );
+        return isDuplicateInAcc ? acc : [...acc, current];
+      }, []);
+
+      // 2. Filter against existing vocabulary
+      const filteredItems = uniqueInFile.filter(newItem => {
+        const isDuplicateInVocab = vocabulary.some(existing => 
+          existing.word.trim().toLowerCase() === newItem.word.trim().toLowerCase() && 
+          existing.meaning.trim().toLowerCase() === newItem.meaning.trim().toLowerCase()
+        );
+        return !isDuplicateInVocab;
+      });
+
+      const duplicateCount = uniqueInFile.length - filteredItems.length;
+
+      if (filteredItems.length > 0) {
+        await addBulkVocab(filteredItems);
+        let msg = `Đã nhập thành công ${filteredItems.length} từ vựng mới!`;
+        if (duplicateCount > 0) {
+          msg += ` (Đã bỏ qua ${duplicateCount} từ bị trùng lặp)`;
+        }
+        setSuccessMessage(msg);
         setTimeout(() => setSuccessMessage(null), 4000);
         setIsBulkImporting(false);
         
@@ -184,7 +208,12 @@ export default function App() {
         setSelectedCategory('All');
         setSortBy('newest');
       } else {
-        throw new Error("Không tìm thấy dữ liệu từ vựng hợp lệ trong file.");
+        if (duplicateCount > 0) {
+          setErrorMessage(`Tất cả từ vựng trong file đã tồn tại trong hệ thống.`);
+        } else {
+          setErrorMessage("Không tìm thấy dữ liệu từ vựng hợp lệ trong file.");
+        }
+        setTimeout(() => setErrorMessage(null), 4000);
       }
     } catch (err: any) {
       console.error("Excel import failed:", err);
