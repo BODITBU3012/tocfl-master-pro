@@ -36,7 +36,7 @@ export function useVocabulary() {
     // Remove orderBy from query to avoid documents with null createdAt being filtered out during local writes
     const q = query(collection(db, COLLECTION_NAME));
     
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
       const items: VocabularyItem[] = [];
       snapshot.forEach((doc) => {
         // Use estimate to get a value for serverTimestamp during local writes
@@ -87,7 +87,8 @@ export function useVocabulary() {
 
   const addVocab = async (item: Omit<VocabularyItem, 'id' | 'createdAt' | 'masteryScore' | 'srsInterval' | 'srsEase' | 'repetitionCount'>) => {
     try {
-      await addDoc(collection(db, COLLECTION_NAME), {
+      console.log("Attempting to add vocab:", item.word);
+      const docRef = await addDoc(collection(db, COLLECTION_NAME), {
         ...item,
         createdAt: serverTimestamp(),
         masteryScore: 0,
@@ -95,8 +96,11 @@ export function useVocabulary() {
         srsEase: INITIAL_EASE,
         repetitionCount: 0,
       });
+      console.log("Add successful, ID:", docRef.id);
+      return docRef.id;
     } catch (error) {
-      console.error("Add failed:", error);
+      console.error("Add failed detail:", error);
+      throw error;
     }
   };
 
@@ -115,8 +119,10 @@ export function useVocabulary() {
         });
       });
       await batch.commit();
+      return true;
     } catch (error) {
       console.error("Bulk add failed:", error);
+      throw error;
     }
   };
 

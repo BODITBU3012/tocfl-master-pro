@@ -19,6 +19,8 @@ export default function App() {
 
   const [expandedVocabId, setExpandedVocabId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isAudioBankOpen, setIsAudioBankOpen] = useState(false);
   const [isBulkImporting, setIsBulkImporting] = useState(false);
   const [bulkText, setBulkText] = useState('');
@@ -88,8 +90,10 @@ export default function App() {
     e.preventDefault();
     if (!newWord || !newMeaning) return;
     
-    setIsParsingBulk(true); // Reuse loader if available or just wait
+    setIsParsingBulk(true); // Reuse loader if available
+    setErrorMessage(null);
     try {
+      console.log("Submitting new word:", newWord);
       await addVocab({
         word: newWord,
         pinyin: newPinyin,
@@ -101,6 +105,10 @@ export default function App() {
         color: newColor,
       });
       
+      console.log("Success! Resetting form...");
+      setSuccessMessage(`Đã thêm từ "${newWord}" thành công!`);
+      setTimeout(() => setSuccessMessage(null), 3500);
+
       setNewWord('');
       setNewPinyin('');
       setNewMeaning('');
@@ -109,7 +117,7 @@ export default function App() {
       setNewColor(undefined);
       setIsAdding(false);
       
-      // Reset filters and sort to newest so the new word is visible at the top
+      // Reset filters and sort to newest
       setSearchTerm('');
       setSelectedLevel('All');
       setSelectedCategory('All');
@@ -117,8 +125,9 @@ export default function App() {
       setSelectedTags([]);
       setShowDueOnly(false);
       setSortBy('newest');
-    } catch (err) {
-      console.error("Failed to add vocab", err);
+    } catch (err: any) {
+      console.error("Critical error adding word:", err);
+      setErrorMessage(`Lỗi: ${err.message || "Không thể lưu dữ liệu"}. Vui lòng thử lại.`);
     } finally {
       setIsParsingBulk(false);
     }
@@ -272,6 +281,20 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500/30">
+      <AnimatePresence>
+        {successMessage && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] bg-emerald-500 text-white px-6 py-3 rounded-full shadow-lg font-bold flex items-center gap-2"
+          >
+            <Check size={20} />
+            {successMessage}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Navigation */}
       <nav className="border-b border-white/5 bg-slate-950/50 backdrop-blur-3xl sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 md:h-20 flex items-center justify-between">
@@ -1197,6 +1220,12 @@ export default function App() {
               </div>
 
               <form onSubmit={handleAddSubmit} className="space-y-5">
+                {errorMessage && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3">
+                    <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={16} />
+                    <p className="text-xs text-red-400 font-medium">{errorMessage}</p>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-1">
                     <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Word (Hanzi)</label>
@@ -1357,6 +1386,12 @@ export default function App() {
               </div>
 
               <div className="p-6">
+                {errorMessage && (
+                  <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3">
+                    <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={16} />
+                    <p className="text-xs text-red-400 font-medium">{errorMessage}</p>
+                  </div>
+                )}
                 <div className="mb-4">
                   <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Dữ liệu từ vựng</label>
                   <textarea 
@@ -1379,10 +1414,25 @@ Hoặc dán ghi chú tiếng Trung của bạn tại đây..."
                     onClick={async () => {
                       if (!bulkText.trim()) return;
                       setIsParsingBulk(true);
+                      setErrorMessage(null);
                       try {
                         const lines = bulkText.split('\n').filter(line => line.trim());
                         const items = lines.map(line => {
-                          const parts = line.split(/[-–—:]/).map(p => p.trim());
+                          // Match formats like: "Word (pinyin) Meaning", "Word - pinyin - Meaning", "Word Meaning"
+                          // More robust splitting using multiple common delimiters
+                          let parts = line.split(/[-–—:|]/).map(p => p.trim());
+                          
+                          // If split didn't find multiple parts, try to detect by space if it looks like HANZI PINYIN MEANING
+                          if (parts.length === 1) {
+                            // Regex to match Hanzi followed by anything else
+                            const match = line.match(/^([\u4e00-\u9fa5]+)\s+(.+)$/);
+                            if (match) {
+                              const [_, word, rest] = match;
+                              const restParts = rest.split(/\s+/, 1); // Get first word as pinyin potential
+                              parts = [word, restParts[0], rest.substring(restParts[0].length).trim()];
+                            }
+                          }
+
                           return {
                             word: parts[0] || '',
                             pinyin: parts[1] || '',
@@ -1396,6 +1446,10 @@ Hoặc dán ghi chú tiếng Trung của bạn tại đây..."
 
                         if (items.length > 0) {
                           await addBulkVocab(items);
+                          
+                          setSuccessMessage(`Đã nhập thành công ${items.length} từ vựng!`);
+                          setTimeout(() => setSuccessMessage(null), 4000);
+
                           setIsBulkImporting(false);
                           setBulkText('');
                           
@@ -1408,6 +1462,9 @@ Hoặc dán ghi chú tiếng Trung của bạn tại đây..."
                           setShowDueOnly(false);
                           setSortBy('newest');
                         }
+                      } catch (err: any) {
+                        console.error("Bulk import failed:", err);
+                        setErrorMessage(`Lỗi nhập hàng loạt: ${err.message || "Đã có lỗi xảy ra"}`);
                       } finally {
                         setIsParsingBulk(false);
                       }
