@@ -10,7 +10,15 @@ export function speakChinese(text: string) {
   // Cancel any ongoing speech
   window.speechSynthesis.cancel();
 
-  const utterance = new SpeechSynthesisUtterance(text);
+  // Filter text to only include Chinese characters and punctuation
+  // \u4e00-\u9fa5 includes common Han characters
+  // \u3000-\u303f includes CJK symbols and punctuation
+  // \uff00-\uffef includes Halfwidth and Fullwidth Forms (more punctuation)
+  const chineseOnlyText = text.match(/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/g)?.join('') || '';
+
+  if (!chineseOnlyText) return;
+
+  const utterance = new SpeechSynthesisUtterance(chineseOnlyText);
   
   // Attempt to find a Chinese voice
   const voices = window.speechSynthesis.getVoices();

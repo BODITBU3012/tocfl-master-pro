@@ -137,6 +137,11 @@ export default function App() {
         return lowerK.includes('ví dụ') || lowerK.includes('example') || lowerK.includes('câu ví dụ');
       });
 
+      const exampleTranslationKey = keys.find(k => {
+        const lowerK = k.toLowerCase();
+        return lowerK.includes('nghĩa ví dụ') || lowerK.includes('dịch ví dụ') || lowerK.includes('example translation') || lowerK.includes('ví dụ dịch');
+      });
+
       if (!levelKey || !wordKey || !meaningKey) {
         throw new Error("Yêu cầu bắt buộc: File Excel của bạn cần có ít nhất các cột: Chữ Hán (Word), Ý nghĩa (Meaning), và Cấp độ (Level).");
       }
@@ -168,6 +173,7 @@ export default function App() {
           category: 'Excel Import',
           tags: [],
           exampleSentence: exampleKey ? String(row[exampleKey] || '').trim() : '',
+          exampleTranslation: exampleTranslationKey ? String(row[exampleTranslationKey] || '').trim() : '',
           notes: String(row['Notes'] || row['Ghi chú'] || row['Mẹo nhớ'] || '')
         };
       }).filter((item): item is any => item !== null && item.word !== '');
@@ -1053,9 +1059,9 @@ export default function App() {
               <div className="flex items-center gap-2 w-full md:w-auto">
                 <button
                   onClick={() => setIsSelectingMode(true)}
-                  className="flex-1 md:flex-none px-5 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-500 transition-all flex items-center justify-center gap-2"
+                  className="flex-1 md:flex-none px-6 py-2.5 bg-indigo-600 text-white text-xs font-black rounded-xl hover:bg-indigo-500 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-xl shadow-indigo-600/20"
                 >
-                  <Brain size={14} /> Ôn tập
+                  <Brain size={16} /> Luyện tập ({selectedVocabCount})
                 </button>
                 <button
                   onClick={() => clearSelection()}
@@ -1067,6 +1073,37 @@ export default function App() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Multi-selection info bar */}
+        <div className="flex items-center justify-between mb-4 mt-8 px-2">
+          <div className="flex items-center gap-3">
+             <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em]">Danh sách từ vựng</h3>
+             <span className="px-2 py-0.5 bg-slate-900 border border-slate-800 rounded text-[9px] font-bold text-slate-500">{filteredVocab.length} từ</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => {
+                const allVisibleSelected = filteredVocab.every(v => v.isSelected);
+                
+                if (allVisibleSelected) {
+                  // If all in filter are selected, unselect them
+                  filteredVocab.forEach(v => {
+                    if (v.isSelected) toggleSelect(v.id);
+                  });
+                } else {
+                  // Select all in filter
+                  filteredVocab.forEach(v => {
+                    if (!v.isSelected) toggleSelect(v.id);
+                  });
+                }
+              }}
+              className="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-[10px] font-bold text-slate-400 hover:text-indigo-400 hover:border-indigo-500/30 transition-all flex items-center gap-2"
+            >
+              <Check className={cn("w-3 h-3", (filteredVocab.every(v => v.isSelected) && filteredVocab.length > 0) ? "text-indigo-400" : "")} />
+              {(filteredVocab.every(v => v.isSelected) && filteredVocab.length > 0) ? "Bỏ chọn bài này" : "Chọn bài này"}
+            </button>
+          </div>
+        </div>
 
         {/* List Content */}
         <div className={cn(
@@ -1102,6 +1139,21 @@ export default function App() {
                       : "border-slate-800/50 hover:border-indigo-500/30 hover:bg-slate-800/30"
                 )}
               >
+                {/* Selection Indicator & Checkbox */}
+                <div className={cn(
+                  "absolute z-20 transition-all",
+                  viewMode === 'card' ? "top-4 right-4" : "left-4 top-1/2 -translate-y-1/2"
+                )}>
+                  <div className={cn(
+                    "w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all",
+                    item.isSelected 
+                      ? "bg-indigo-500 border-indigo-500 shadow-lg shadow-indigo-500/30" 
+                      : "bg-slate-950 border-slate-700 group-hover:border-slate-500"
+                  )}>
+                    {item.isSelected && <Check size={12} strokeWidth={4} className="text-white" />}
+                  </div>
+                </div>
+
                 {/* Visual Label Indicator */}
                 {item.color && viewMode === 'card' && (
                   <div className={cn(
@@ -1116,19 +1168,10 @@ export default function App() {
                     }[item.color]
                   )} />
                 )}
-                {item.isSelected && (
-                  <div className={cn(
-                    "bg-indigo-500 rounded-full flex items-center justify-center text-white shadow-lg ring-4 ring-slate-950 z-20",
-                    viewMode === 'card' ? "absolute -top-1.5 -right-1.5 w-5 h-5" : "absolute -left-1.5 top-1/2 -translate-y-1/2 w-4 h-4 ring-2"
-                  )}>
-                    <Check size={viewMode === 'card' ? 12 : 10} strokeWidth={4} />
-                  </div>
-                )}
-
                 {viewMode === 'card' ? (
                   <>
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex flex-col gap-1">
+                    <div className="flex items-start justify-between mb-3 px-1">
+                      <div className="flex flex-col gap-1 pr-10">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className={cn(
               "px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest self-start border",
@@ -1334,7 +1377,7 @@ export default function App() {
                   </>
                 ) : (
                   <>
-                    <div className="flex items-center gap-4 flex-1">
+                    <div className="flex items-center gap-4 flex-1 pl-10">
                       <div className={cn(
                         "w-2 h-8 rounded-full shrink-0",
                         getLevelColor(item.level, 'solid').replace('text-', 'bg-')
@@ -1926,7 +1969,13 @@ export default function App() {
         <QuizEngine 
           type="vocabulary"
           mode={practiceMode}
-          vocabulary={vocabulary}
+          vocabulary={
+            selectedVocabCount > 0 
+              ? vocabulary.filter(v => v.isSelected)
+              : showDueOnly 
+                ? vocabulary.filter(v => !v.nextReviewAt || v.nextReviewAt <= Date.now())
+                : filteredVocab
+          }
           onAnswer={recordResult}
           onClose={() => {
             setIsQuizMode(false);

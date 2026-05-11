@@ -128,7 +128,7 @@ function generateLocalVocabQuestion(pool: VocabularyItem[], target: VocabularyIt
       id: Math.random().toString(36).substr(2, 9),
       vocabId: target.id,
       type: 'sentence-translation',
-      prompt: `Dịch sang tiếng Trung: "${target.meaning}" (Ví dụ với từ "${target.word}")`,
+      prompt: target.exampleTranslation ? `Dịch sang tiếng Trung: "${target.exampleTranslation}"` : `Dịch sang tiếng Trung: "${target.meaning}" (Ví dụ với từ "${target.word}")`,
       correctAnswer: target.exampleSentence,
       level: target.level,
       explanation: `Câu đúng là: "${target.exampleSentence}"`
@@ -136,12 +136,18 @@ function generateLocalVocabQuestion(pool: VocabularyItem[], target: VocabularyIt
   }
 
   if (type === 'sentence-reorder' && target.exampleSentence) {
-    const parts = target.exampleSentence.split(''); // Characters in Chinese
+    const sentence = target.exampleSentence.trim();
+    // Use character-splitting for Chinese, word-splitting for others (Vietnamese etc)
+    const isChinese = /[\u4e00-\u9fa5]/.test(sentence);
+    const parts = isChinese 
+      ? sentence.split('').filter(c => c.trim() !== '') 
+      : sentence.split(' ').filter(w => w.trim() !== '');
+
     return {
       id: Math.random().toString(36).substr(2, 9),
       vocabId: target.id,
       type: 'sentence-reorder',
-      prompt: `Sắp xếp các ký tự để tạo thành câu: "${target.meaning}"`,
+      prompt: target.exampleTranslation ? `Sắp xếp các ký tự để tạo thành câu: "${target.exampleTranslation}"` : `Sắp xếp các ký tự để tạo thành câu: "${target.meaning}"`,
       correctAnswer: parts,
       level: target.level,
       explanation: `Câu hoàn chỉnh: "${target.exampleSentence}"`
@@ -176,6 +182,7 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
   const [isFinished, setIsFinished] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
   const [typingInput, setTypingInput] = useState('');
+  const [isLastAnswerCorrect, setIsLastAnswerCorrect] = useState<boolean | null>(null);
 
   const currentQuestion = questions[currentStep];
 
@@ -269,6 +276,7 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
     }
     setTypingInput('');
     setIsAnswered(false);
+    setIsLastAnswerCorrect(null);
     setIsFlipped(false);
   }, [currentStep, questions]);
 
@@ -292,43 +300,54 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
   }, [currentQuestion, isFlipped, isAnswered]);
 
   const handleAnswer = (answer: string | string[]) => {
-    if (isAnswered) return;
-    
-    setSelectedAnswer(answer);
-    
-    const current = questions[currentStep];
-    let isCorrect = false;
-    
-    if (current.type === 'sentence-reorder') {
-      const correctStr = Array.isArray(current.correctAnswer) 
-        ? current.correctAnswer.join(' ') 
-        : current.correctAnswer;
-      const submittedStr = (answer as string[]).join(' ');
-      isCorrect = correctStr === submittedStr;
-    } else if (current.type === 'flashcard') {
-      isCorrect = answer === 'correct';
-    } else {
-      isCorrect = answer === current.correctAnswer;
-    }
+    try {
+      if (isAnswered) return;
+      
+      setSelectedAnswer(answer);
+      
+      const current = questions[currentStep];
+      if (!current) return;
 
-    setIsAnswered(true);
-
-    if (isCorrect) {
-      setScore(s => s + 1);
-      if (current.vocabId) {
-        setCorrectIds(prev => [...prev, current.vocabId as string]);
+      let isCorrect = false;
+      
+      if (current.type === 'sentence-reorder') {
+        const correctStr = Array.isArray(current.correctAnswer) 
+          ? current.correctAnswer.join('').replace(/\s/g, '').toLowerCase() 
+          : String(current.correctAnswer).replace(/\s/g, '').toLowerCase();
+        const submittedStr = Array.isArray(answer) 
+          ? answer.join('').replace(/\s/g, '').toLowerCase() 
+          : String(answer).replace(/\s/g, '').toLowerCase();
+        isCorrect = correctStr === submittedStr;
+      } else if (current.type === 'flashcard') {
+        isCorrect = answer === 'correct';
+      } else {
+        isCorrect = String(answer).trim() === String(current.correctAnswer).trim();
       }
-    }
 
-    if (current.vocabId && onAnswer) {
-      onAnswer(current.vocabId, isCorrect);
-    }
+      setIsAnswered(true);
+      setIsLastAnswerCorrect(isCorrect);
 
-    // Only auto-next in timed mode for speed
-    if (mode === 'timed' && isCorrect) {
-      setTimeout(() => {
-        handleNext();
-      }, 800); // Slightly longer delay to actually see the "Correct" feedback
+      if (isCorrect) {
+        setScore(s => s + 1);
+        if (current.vocabId) {
+          setCorrectIds(prev => [...prev, current.vocabId as string]);
+        }
+      }
+
+      if (current.vocabId && onAnswer) {
+        onAnswer(current.vocabId, isCorrect);
+      }
+
+      // Only auto-next in timed mode for speed
+      if (mode === 'timed' && isCorrect) {
+        setTimeout(() => {
+          handleNext();
+        }, 800);
+      }
+    } catch (err) {
+      console.error("Error in handleAnswer:", err);
+      // Fallback: just move to next or show error
+      setIsAnswered(true);
     }
   };
 
@@ -561,23 +580,23 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
               {currentQuestion.type === 'sentence-reorder' && (
                 <div className="space-y-8">
                   <div className="min-h-[120px] p-6 rounded-3xl bg-slate-950 border border-slate-800 flex flex-wrap gap-3 content-start">
-                    {(selectedAnswer as string[])?.map((word, i) => (
+                    {(Array.isArray(selectedAnswer) ? selectedAnswer : [])?.map((word, i) => (
                       <motion.button
-                        layoutId={`word-${word}-${i}`}
-                        key={`${word}-${i}`}
+                        layoutId={`word-selected-${word}-${i}`}
+                        key={`selected-${word}-${i}`}
                         onClick={() => {
                           if (isAnswered) return;
-                          const newSelection = [...(selectedAnswer as string[])];
-                          newSelection.splice(i, 1);
-                          setSelectedAnswer(newSelection);
-                          setShuffledReorder([...shuffledReorder, word]);
+                          const currentSelection = Array.isArray(selectedAnswer) ? [...selectedAnswer] : [];
+                          const removedWord = currentSelection.splice(i, 1)[0];
+                          setSelectedAnswer(currentSelection);
+                          setShuffledReorder(prev => [...prev, removedWord]);
                         }}
                         className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-600/20 font-bold font-zh"
                       >
                         {word}
                       </motion.button>
                     ))}
-                    {(!selectedAnswer || (selectedAnswer as string[]).length === 0) && (
+                    {(!Array.isArray(selectedAnswer) || (selectedAnswer as string[]).length === 0) && (
                       <span className="text-slate-700 italic text-sm self-center">Nhấn vào các từ bên dưới để sắp xếp...</span>
                     )}
                   </div>
@@ -585,17 +604,18 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                   <div className="flex flex-wrap gap-3">
                     {shuffledReorder.map((word, i) => (
                       <motion.button
-                        layoutId={`word-${word}-${i}`}
-                        key={`${word}-${i}`}
+                        layoutId={`word-shuffle-${word}-${i}`}
+                        key={`shuffle-${word}-${i}`}
                         disabled={isAnswered}
                         onClick={() => {
-                          const newSelection = [...(selectedAnswer as string[]), word];
+                          const currentSelection = Array.isArray(selectedAnswer) ? [...selectedAnswer] : [];
+                          const newSelection = [...currentSelection, word];
                           setSelectedAnswer(newSelection);
-                          setShuffledReorder(shuffledReorder.filter((_, idx) => idx !== i));
+                          setShuffledReorder(prev => prev.filter((_, idx) => idx !== i));
                           
-                          const targetLength = typeof currentQuestion.correctAnswer === 'string' 
-                            ? currentQuestion.correctAnswer.split(' ').length 
-                            : currentQuestion.correctAnswer.length;
+                          const targetLength = Array.isArray(currentQuestion.correctAnswer) 
+                            ? currentQuestion.correctAnswer.length 
+                            : String(currentQuestion.correctAnswer).split(' ').length;
 
                           if (newSelection.length === targetLength) {
                              setTimeout(() => handleAnswer(newSelection), 400);
@@ -628,10 +648,10 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                   ) : (
                     <div className={cn(
                       "p-6 rounded-2xl border flex items-center justify-between",
-                      selectedAnswer === currentQuestion.correctAnswer ? "border-emerald-500 bg-emerald-500/10" : "border-red-500 bg-red-500/10"
+                      isLastAnswerCorrect ? "border-emerald-500 bg-emerald-500/10" : "border-red-500 bg-red-500/10"
                     )}>
-                      <span className="text-xl font-bold">{selectedAnswer}</span>
-                      {selectedAnswer === currentQuestion.correctAnswer ? <Check className="text-emerald-400" /> : <X className="text-red-400" />}
+                      <span className="text-xl font-bold">{Array.isArray(selectedAnswer) ? selectedAnswer.join('') : selectedAnswer}</span>
+                      {isLastAnswerCorrect ? <Check className="text-emerald-400" /> : <X className="text-red-400" />}
                     </div>
                   )}
                 </div>
@@ -708,11 +728,13 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                   ) : (
                     <div className={cn(
                       "p-8 rounded-3xl border-2 flex flex-col items-center justify-center gap-4",
-                      selectedAnswer === currentQuestion.correctAnswer ? "border-emerald-500 bg-emerald-500/10" : "border-red-500 bg-red-500/10"
+                      isLastAnswerCorrect ? "border-emerald-500 bg-emerald-500/10" : "border-red-500 bg-red-500/10"
                     )}>
                       <div className="flex flex-col items-center gap-3">
-                         <span className="text-xl md:text-3xl font-bold text-center leading-relaxed font-zh">{selectedAnswer as string}</span>
-                         {selectedAnswer === currentQuestion.correctAnswer ? (
+                         <span className="text-xl md:text-3xl font-bold text-center leading-relaxed font-zh">
+                           {Array.isArray(selectedAnswer) ? selectedAnswer.join('') : selectedAnswer}
+                         </span>
+                         {isLastAnswerCorrect ? (
                            <div className="flex items-center gap-2 text-emerald-400 font-bold uppercase text-[10px] tracking-widest mt-2">
                              <Check size={20} />
                              Chính xác
@@ -724,10 +746,12 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                            </div>
                          )}
                       </div>
-                      {selectedAnswer !== currentQuestion.correctAnswer && (
+                      {!isLastAnswerCorrect && (
                         <div className="mt-4 p-4 bg-slate-950 rounded-2xl border border-slate-800 w-full text-center">
                           <p className="text-slate-500 text-[10px] uppercase tracking-widest mb-2 font-bold">Đáp án chuẩn:</p>
-                          <p className="text-xl md:text-2xl font-bold text-emerald-400 leading-relaxed font-zh">{currentQuestion.correctAnswer as string}</p>
+                          <p className="text-xl md:text-2xl font-bold text-emerald-400 leading-relaxed font-zh">
+                            {Array.isArray(currentQuestion.correctAnswer) ? currentQuestion.correctAnswer.join('') : currentQuestion.correctAnswer}
+                          </p>
                         </div>
                       )}
                     </div>
@@ -744,11 +768,11 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                   <div className="flex items-start gap-4 mb-8">
                     <div className={cn(
                       "p-3 rounded-2xl border shadow-inner",
-                      selectedAnswer === (currentQuestion.type === 'flashcard' ? 'correct' : currentQuestion.correctAnswer)
+                      isLastAnswerCorrect
                         ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
                         : "bg-red-500/10 border-red-500/20 text-red-400"
                     )}>
-                      {selectedAnswer === (currentQuestion.type === 'flashcard' ? 'correct' : currentQuestion.correctAnswer) ? <Trophy size={24} /> : <AlertCircle size={24} />}
+                      {isLastAnswerCorrect ? <Trophy size={24} /> : <AlertCircle size={24} />}
                     </div>
                     <div>
                       <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Dữ liệu phân tích</h4>

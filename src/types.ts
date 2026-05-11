@@ -7,6 +7,7 @@ export interface VocabularyItem {
   meaning: string;
   level: ProficiencyLevel;
   exampleSentence?: string;
+  exampleTranslation?: string;
   category: string;
   usageExplanation?: string;
   tags: string[];
