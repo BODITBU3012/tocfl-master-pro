@@ -37,14 +37,24 @@ export interface AudioLesson {
 
 export type PracticeMode = 'standard' | 'timed' | 'mistake-review' | 'flashcards' | 'typing' | 'srs' | 'tone-master' | 'ear-training';
 
-export type QuestionType = 'multiple-choice' | 'fill-in-the-blank' | 'sentence-reorder' | 'flashcard' | 'typing' | 'tone-selection' | 'audio-to-meaning' | 'hanzi-to-pinyin' | 'sentence-translation';
+export type QuestionType = 'multiple-choice' | 'fill-in-the-blank' | 'flashcard' | 'typing' | 'tone-selection' | 'audio-to-meaning' | 'hanzi-to-pinyin' | 'sentence-translation';
+
+export const ALL_QUESTION_TYPES: QuestionType[] = [
+  'multiple-choice', 
+  'fill-in-the-blank', 
+  'typing', 
+  'tone-selection', 
+  'audio-to-meaning', 
+  'hanzi-to-pinyin', 
+  'sentence-translation'
+];
 
 export interface QuizQuestion {
   id: string;
   type: QuestionType;
   prompt: string;
   options?: string[]; // For multiple choice
-  correctAnswer: string | string[]; // string for MC/FITB, array for reorder
+  correctAnswer: string; // Correct answer for the question
   explanation?: string;
   pinyin?: string;
   wordType?: string;

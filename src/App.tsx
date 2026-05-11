@@ -4,7 +4,7 @@ import { Timer, Trophy, AlertCircle, Volume2, Plus, Search, BookOpen, Brain, Tra
 import { read, utils } from 'xlsx';
 import { useVocabulary } from './hooks/useVocabulary';
 import { useStreak } from './hooks/useStreak';
-import { ProficiencyLevel, VocabularyItem, PracticeMode } from './types';
+import { ProficiencyLevel, VocabularyItem, PracticeMode, QuestionType, ALL_QUESTION_TYPES } from './types';
 import QuizEngine from './components/Quiz/QuizEngine';
 import AudioManager from './components/Audio/AudioManager';
 import SrsStats from './components/Stats/SrsStats';
@@ -29,11 +29,13 @@ export default function App() {
   const [isParsingBulk, setIsParsingBulk] = useState(false);
   const [isQuizMode, setIsQuizMode] = useState(false);
   const [practiceMode, setPracticeMode] = useState<PracticeMode>('standard');
+  const [preferredTypes, setPreferredTypes] = useState<QuestionType[]>(ALL_QUESTION_TYPES);
   const [isSelectingMode, setIsSelectingMode] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<ProficiencyLevel | 'All'>('All');
   const [selectedLesson, setSelectedLesson] = useState<string | 'All'>('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [selectedWordType, setSelectedWordType] = useState<string>('All');
   const [selectedColor, setSelectedColor] = useState<string | 'All'>('All');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<'newest' | 'mastery' | 'alphabetical'>('newest');
@@ -45,6 +47,7 @@ export default function App() {
   const levelScrollRef = useRef<HTMLDivElement>(null);
   const categoryScrollRef = useRef<HTMLDivElement>(null);
   const lessonScrollRef = useRef<HTMLDivElement>(null);
+  const wordTypeScrollRef = useRef<HTMLDivElement>(null);
 
   const scrollContainer = (ref: React.RefObject<HTMLDivElement | null>, direction: 'left' | 'right') => {
     if (ref.current) {
@@ -262,6 +265,7 @@ export default function App() {
   const allTags = Object.keys(tagCounts).sort();
 
   const allCategories = Array.from(new Set(vocabulary.map(v => v.category || 'Chưa phân loại'))).sort();
+  const allWordTypes = Array.from(new Set(vocabulary.map(v => v.wordType).filter((type): type is string => !!type))).sort();
 
   const allLessonsForLevel = Array.from(new Set(
     vocabulary
@@ -285,11 +289,12 @@ export default function App() {
     const matchesLevel = selectedLevel === 'All' || v.level === selectedLevel;
     const matchesLesson = selectedLesson === 'All' || v.lesson === selectedLesson;
     const matchesCategory = selectedCategory === 'All' || (v.category || 'Chưa phân loại') === selectedCategory;
+    const matchesWordType = selectedWordType === 'All' || v.wordType === selectedWordType;
     const matchesColor = selectedColor === 'All' || (v.color === (selectedColor === 'none' ? undefined : selectedColor));
     const matchesTags = selectedTags.length === 0 || selectedTags.every(tag => (v.tags || []).includes(tag));
     const isDue = !v.nextReviewAt || v.nextReviewAt <= Date.now();
     const matchesDue = !showDueOnly || isDue;
-    return matchesSearch && matchesLevel && matchesLesson && matchesCategory && matchesColor && matchesTags && matchesDue;
+    return matchesSearch && matchesLevel && matchesLesson && matchesCategory && matchesWordType && matchesColor && matchesTags && matchesDue;
   }).sort((a, b) => {
     if (sortBy === 'mastery') return (b.masteryScore || 0) - (a.masteryScore || 0);
     if (sortBy === 'alphabetical') return (a.word || '').localeCompare(b.word || '');
@@ -337,6 +342,7 @@ export default function App() {
       setSearchTerm('');
       setSelectedLevel('All');
       setSelectedCategory('All');
+      setSelectedWordType('All');
       setSelectedColor('All');
       setSelectedTags([]);
       setShowDueOnly(false);
@@ -604,6 +610,53 @@ export default function App() {
                   </button>
                 ))}
               </div>
+
+              {/* Question Type Preferences (Only for certain modes) */}
+              {['standard', 'srs', 'mistake-review', 'timed'].includes(practiceMode || '') && (
+                <div className="mb-8 p-6 bg-slate-950/50 border border-slate-800 rounded-[24px]">
+                   <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                     <Brain size={12} className="text-indigo-400" /> Cấu hình câu hỏi
+                   </h4>
+                   <div className="flex flex-wrap gap-2">
+                     {ALL_QUESTION_TYPES.map(type => {
+                       const isSelected = preferredTypes.includes(type);
+                       const labelMap: Record<string, string> = {
+                         'multiple-choice': 'Trắc nghiệm',
+                         'fill-in-the-blank': 'Điền từ',
+                         'typing': 'Gõ phím',
+                         'tone-selection': 'Chọn thanh điệu',
+                         'audio-to-meaning': 'Luyện nghe',
+                         'hanzi-to-pinyin': 'Hán tự -> Pinyin',
+                         'sentence-translation': 'Dịch câu'
+                       };
+                       
+                       return (
+                         <button
+                           key={type}
+                           onClick={() => {
+                             if (isSelected) {
+                               if (preferredTypes.length > 1) {
+                                 setPreferredTypes(prev => prev.filter(t => t !== type));
+                               }
+                             } else {
+                               setPreferredTypes(prev => [...prev, type]);
+                             }
+                           }}
+                           className={cn(
+                             "px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all border",
+                             isSelected 
+                               ? "bg-indigo-600 border-indigo-500 text-white" 
+                               : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300"
+                           )}
+                         >
+                           {labelMap[type] || type}
+                         </button>
+                       );
+                     })}
+                   </div>
+                   <p className="text-[9px] text-slate-600 mt-4 italic">* Hệ thống sẽ ưu tiên các loại câu hỏi bạn chọn trong các chế độ luyện tập hỗn hợp.</p>
+                </div>
+              )}
 
               <button 
                 onClick={() => setIsSelectingMode(false)}
@@ -938,6 +991,42 @@ export default function App() {
             </div>
             <button 
               onClick={() => scrollContainer(categoryScrollRef, 'right')}
+              className="absolute right-0 z-10 p-1 bg-slate-900/80 rounded-full border border-slate-700 md:opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <ChevronRight size={12} />
+            </button>
+          </div>
+        )}
+
+        {allWordTypes.length > 0 && (
+          <div className="flex items-center gap-2 mb-4 relative group">
+            <div className="p-2 border border-slate-800 rounded-lg bg-slate-900 shrink-0">
+              <FileText size={14} className="text-blue-400" />
+            </div>
+            <button 
+              onClick={() => scrollContainer(wordTypeScrollRef, 'left')}
+              className="absolute left-10 z-10 p-1 bg-slate-900/80 rounded-full border border-slate-700 md:opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <ChevronLeft size={12} />
+            </button>
+            <div className="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 scroll-smooth px-2" ref={wordTypeScrollRef}>
+              {['All', ...allWordTypes].map(type => (
+                <button
+                  key={type}
+                  onClick={() => setSelectedWordType(type)}
+                  className={cn(
+                    "px-4 py-1.5 rounded-full text-[10px] font-bold transition-all border shrink-0",
+                    selectedWordType === type
+                      ? "bg-blue-600 border-blue-500 text-white shadow-[0_0_15px_rgba(37,99,235,0.3)]"
+                      : "bg-slate-900 border-slate-800 text-slate-500 hover:text-white"
+                  )}
+                >
+                  {type === 'All' ? 'Tất cả loại từ' : type}
+                </button>
+              ))}
+            </div>
+            <button 
+              onClick={() => scrollContainer(wordTypeScrollRef, 'right')}
               className="absolute right-0 z-10 p-1 bg-slate-900/80 rounded-full border border-slate-700 md:opacity-0 group-hover:opacity-100 transition-opacity"
             >
               <ChevronRight size={12} />
@@ -1969,6 +2058,7 @@ export default function App() {
         <QuizEngine 
           type="vocabulary"
           mode={practiceMode}
+          preferredTypes={preferredTypes}
           vocabulary={
             selectedVocabCount > 0 
               ? vocabulary.filter(v => v.isSelected)

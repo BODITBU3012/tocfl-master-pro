@@ -11,6 +11,7 @@ interface QuizEngineProps {
   vocabulary: VocabularyItem[];
   type: 'vocabulary';
   mode: PracticeMode;
+  preferredTypes?: QuestionType[];
   onAnswer?: (id: string, isCorrect: boolean) => void;
   onFinish: (correctIds: string[], askedIds: string[]) => void;
   onClose: () => void;
@@ -135,24 +136,6 @@ function generateLocalVocabQuestion(pool: VocabularyItem[], target: VocabularyIt
     };
   }
 
-  if (type === 'sentence-reorder' && target.exampleSentence) {
-    const sentence = target.exampleSentence.trim();
-    // Use character-splitting for Chinese, word-splitting for others (Vietnamese etc)
-    const isChinese = /[\u4e00-\u9fa5]/.test(sentence);
-    const parts = isChinese 
-      ? sentence.split('').filter(c => c.trim() !== '') 
-      : sentence.split(' ').filter(w => w.trim() !== '');
-
-    return {
-      id: Math.random().toString(36).substr(2, 9),
-      vocabId: target.id,
-      type: 'sentence-reorder',
-      prompt: target.exampleTranslation ? `Sắp xếp các ký tự để tạo thành câu: "${target.exampleTranslation}"` : `Sắp xếp các ký tự để tạo thành câu: "${target.meaning}"`,
-      correctAnswer: parts,
-      level: target.level,
-      explanation: `Câu hoàn chỉnh: "${target.exampleSentence}"`
-    };
-  }
 
   // Fallback to simple multi-choice if no sentence or for reorder
   const options = [target.word, ...distractors.map(d => d.word)].sort(() => 0.5 - Math.random());
@@ -168,15 +151,14 @@ function generateLocalVocabQuestion(pool: VocabularyItem[], target: VocabularyIt
   };
 }
 
-export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClose }: QuizEngineProps) {
+export default function QuizEngine({ vocabulary, mode, preferredTypes, onAnswer, onFinish, onClose }: QuizEngineProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [score, setScore] = useState(0);
   const [correctIds, setCorrectIds] = useState<string[]>([]);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedAnswer, setSelectedAnswer] = useState<string | string[] | null>(null);
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
-  const [shuffledReorder, setShuffledReorder] = useState<string[]>([]);
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   const [timeLeft, setTimeLeft] = useState(60);
   const [isFinished, setIsFinished] = useState(false);
@@ -221,7 +203,10 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
       } else if (mode === 'ear-training') {
         questionTypes = ['audio-to-meaning'];
       } else {
-        questionTypes = ['multiple-choice', 'fill-in-the-blank', 'hanzi-to-pinyin', 'tone-selection', 'audio-to-meaning', 'typing', 'sentence-reorder', 'sentence-translation'];
+        // Use preferred types if available, otherwise default set
+        questionTypes = (preferredTypes && preferredTypes.length > 0) 
+          ? preferredTypes 
+          : ['multiple-choice', 'fill-in-the-blank', 'hanzi-to-pinyin', 'tone-selection', 'audio-to-meaning', 'typing', 'sentence-translation'];
       }
       
       try {
@@ -240,22 +225,38 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
           finalPool = [...vocabulary]; // Fallback to all if no mistakes
         }
 
-        const quizLength = mode === 'timed' ? Math.min(20, finalPool.length) : (mode === 'flashcards' ? finalPool.length : Math.min(5, finalPool.length));
+        const generated: QuizQuestion[] = [];
         
-        // Shuffle and pick
-        const selectedItems = [...finalPool].sort(() => 0.5 - Math.random()).slice(0, quizLength);
-        
-        const generated = selectedItems.map((v, i) => {
-          let type = questionTypes[i % questionTypes.length];
+        // Multi-question logic based on mastery
+        finalPool.forEach((v) => {
+          let numQuestions = 1;
           
-          // Fallback if no sentence for sentence types
-          if ((type === 'sentence-reorder' || type === 'sentence-translation' || type === 'fill-in-the-blank') && !v.exampleSentence) {
-            type = 'multiple-choice';
+          // Only vary quantity in non-specialized modes
+          if (mode === 'standard' || mode === 'mistake-review' || mode === 'srs') {
+            if (v.masteryScore < 40) numQuestions = 3;
+            else if (v.masteryScore < 75) numQuestions = 2;
+            else numQuestions = 1;
           }
+
+          // Shuffle types for this word
+          const availableTypes = [...questionTypes].sort(() => 0.5 - Math.random());
           
-          return generateLocalVocabQuestion(finalPool, v, type);
+          for (let i = 0; i < numQuestions; i++) {
+            let type = availableTypes[i % availableTypes.length];
+            
+            // Fallback if no sentence for sentence types
+            if ((type === 'sentence-translation' || type === 'fill-in-the-blank') && !v.exampleSentence) {
+               // Try another type from availableTypes that isn't sentence-based
+               const betterType = availableTypes.find(t => t !== 'sentence-translation' && t !== 'fill-in-the-blank');
+               type = betterType || 'multiple-choice';
+            }
+            
+            generated.push(generateLocalVocabQuestion(finalPool, v, type));
+          }
         });
-        setQuestions(generated);
+
+        // Final shuffle of all questions
+        setQuestions(generated.sort(() => 0.5 - Math.random()));
       } catch (err) {
         console.error("Failed to generate questions", err);
       } finally {
@@ -266,14 +267,7 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
   }, [vocabulary.length, mode, questions.length]); // Use lengths and mode to avoid re-triggering on data updates
 
   useEffect(() => {
-    if (questions[currentStep]?.type === 'sentence-reorder') {
-      const correct = questions[currentStep].correctAnswer;
-      const parts = typeof correct === 'string' ? correct.split(' ') : correct;
-      setShuffledReorder([...parts].sort(() => 0.5 - Math.random()));
-      setSelectedAnswer([]);
-    } else {
-      setSelectedAnswer(null);
-    }
+    setSelectedAnswer(null);
     setTypingInput('');
     setIsAnswered(false);
     setIsLastAnswerCorrect(null);
@@ -299,7 +293,7 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentQuestion, isFlipped, isAnswered]);
 
-  const handleAnswer = (answer: string | string[]) => {
+  const handleAnswer = (answer: string) => {
     try {
       if (isAnswered) return;
       
@@ -310,15 +304,7 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
 
       let isCorrect = false;
       
-      if (current.type === 'sentence-reorder') {
-        const correctStr = Array.isArray(current.correctAnswer) 
-          ? current.correctAnswer.join('').replace(/\s/g, '').toLowerCase() 
-          : String(current.correctAnswer).replace(/\s/g, '').toLowerCase();
-        const submittedStr = Array.isArray(answer) 
-          ? answer.join('').replace(/\s/g, '').toLowerCase() 
-          : String(answer).replace(/\s/g, '').toLowerCase();
-        isCorrect = correctStr === submittedStr;
-      } else if (current.type === 'flashcard') {
+      if (current.type === 'flashcard') {
         isCorrect = answer === 'correct';
       } else {
         isCorrect = String(answer).trim() === String(current.correctAnswer).trim();
@@ -576,59 +562,6 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                 </div>
               )}
 
-              {/* Sentence Reorder */}
-              {currentQuestion.type === 'sentence-reorder' && (
-                <div className="space-y-8">
-                  <div className="min-h-[120px] p-6 rounded-3xl bg-slate-950 border border-slate-800 flex flex-wrap gap-3 content-start">
-                    {(Array.isArray(selectedAnswer) ? selectedAnswer : [])?.map((word, i) => (
-                      <motion.button
-                        layoutId={`word-selected-${word}-${i}`}
-                        key={`selected-${word}-${i}`}
-                        onClick={() => {
-                          if (isAnswered) return;
-                          const currentSelection = Array.isArray(selectedAnswer) ? [...selectedAnswer] : [];
-                          const removedWord = currentSelection.splice(i, 1)[0];
-                          setSelectedAnswer(currentSelection);
-                          setShuffledReorder(prev => [...prev, removedWord]);
-                        }}
-                        className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-600/20 font-bold font-zh"
-                      >
-                        {word}
-                      </motion.button>
-                    ))}
-                    {(!Array.isArray(selectedAnswer) || (selectedAnswer as string[]).length === 0) && (
-                      <span className="text-slate-700 italic text-sm self-center">Nhấn vào các từ bên dưới để sắp xếp...</span>
-                    )}
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-3">
-                    {shuffledReorder.map((word, i) => (
-                      <motion.button
-                        layoutId={`word-shuffle-${word}-${i}`}
-                        key={`shuffle-${word}-${i}`}
-                        disabled={isAnswered}
-                        onClick={() => {
-                          const currentSelection = Array.isArray(selectedAnswer) ? [...selectedAnswer] : [];
-                          const newSelection = [...currentSelection, word];
-                          setSelectedAnswer(newSelection);
-                          setShuffledReorder(prev => prev.filter((_, idx) => idx !== i));
-                          
-                          const targetLength = Array.isArray(currentQuestion.correctAnswer) 
-                            ? currentQuestion.correctAnswer.length 
-                            : String(currentQuestion.correctAnswer).split(' ').length;
-
-                          if (newSelection.length === targetLength) {
-                             setTimeout(() => handleAnswer(newSelection), 400);
-                          }
-                        }}
-                        className="px-5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl hover:border-indigo-500/50 transition-colors font-bold text-slate-300 font-zh"
-                      >
-                        {word}
-                      </motion.button>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Fill in the blank */}
               {currentQuestion.type === 'fill-in-the-blank' && (
@@ -650,7 +583,7 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                       "p-6 rounded-2xl border flex items-center justify-between",
                       isLastAnswerCorrect ? "border-emerald-500 bg-emerald-500/10" : "border-red-500 bg-red-500/10"
                     )}>
-                      <span className="text-xl font-bold">{Array.isArray(selectedAnswer) ? selectedAnswer.join('') : selectedAnswer}</span>
+                      <span className="text-xl font-bold">{selectedAnswer}</span>
                       {isLastAnswerCorrect ? <Check className="text-emerald-400" /> : <X className="text-red-400" />}
                     </div>
                   )}
@@ -732,7 +665,7 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                     )}>
                       <div className="flex flex-col items-center gap-3">
                          <span className="text-xl md:text-3xl font-bold text-center leading-relaxed font-zh">
-                           {Array.isArray(selectedAnswer) ? selectedAnswer.join('') : selectedAnswer}
+                           {selectedAnswer}
                          </span>
                          {isLastAnswerCorrect ? (
                            <div className="flex items-center gap-2 text-emerald-400 font-bold uppercase text-[10px] tracking-widest mt-2">
@@ -750,7 +683,7 @@ export default function QuizEngine({ vocabulary, mode, onAnswer, onFinish, onClo
                         <div className="mt-4 p-4 bg-slate-950 rounded-2xl border border-slate-800 w-full text-center">
                           <p className="text-slate-500 text-[10px] uppercase tracking-widest mb-2 font-bold">Đáp án chuẩn:</p>
                           <p className="text-xl md:text-2xl font-bold text-emerald-400 leading-relaxed font-zh">
-                            {Array.isArray(currentQuestion.correctAnswer) ? currentQuestion.correctAnswer.join('') : currentQuestion.correctAnswer}
+                            {currentQuestion.correctAnswer}
                           </p>
                         </div>
                       )}
