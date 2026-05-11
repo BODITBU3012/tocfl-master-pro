@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Timer, Trophy, AlertCircle, Volume2, Plus, Search, BookOpen, Brain, Trash2, ChevronRight, X, Sparkles, Filter, LayoutGrid, List, TrendingUp, Calendar, Loader2, FileText, Upload, Check, Clock, Music, Headphones, Flame, Bell, FileSpreadsheet } from 'lucide-react';
+import { Timer, Trophy, AlertCircle, Volume2, Plus, Search, BookOpen, Brain, Trash2, ChevronRight, X, Sparkles, Filter, LayoutGrid, List, TrendingUp, Calendar, Loader2, FileText, Upload, Check, Clock, Music, Headphones, Flame, Bell, FileSpreadsheet, Book, ArrowUp, ChevronLeft } from 'lucide-react';
 import { read, utils } from 'xlsx';
 import { useVocabulary } from './hooks/useVocabulary';
 import { useStreak } from './hooks/useStreak';
@@ -32,6 +32,7 @@ export default function App() {
   const [isSelectingMode, setIsSelectingMode] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<ProficiencyLevel | 'All'>('All');
+  const [selectedLesson, setSelectedLesson] = useState<string | 'All'>('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedColor, setSelectedColor] = useState<string | 'All'>('All');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -39,7 +40,29 @@ export default function App() {
   const [showDueOnly, setShowDueOnly] = useState(false);
   const [viewMode, setViewMode] = useState<'card' | 'compact'>('card');
   const [isStatsOpen, setIsStatsOpen] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const excelInputRef = useRef<HTMLInputElement>(null);
+  const levelScrollRef = useRef<HTMLDivElement>(null);
+  const categoryScrollRef = useRef<HTMLDivElement>(null);
+  const lessonScrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollContainer = (ref: React.RefObject<HTMLDivElement | null>, direction: 'left' | 'right') => {
+    if (ref.current) {
+      const scrollAmount = 200;
+      ref.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 400);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -73,6 +96,14 @@ export default function App() {
         k.includes('當代')
       );
 
+      const lessonKey = keys.find(k => 
+        k.toLowerCase().includes('bài') || 
+        k.toLowerCase().includes('lesson') || 
+        k.toLowerCase().includes('chapter') ||
+        k.toLowerCase().includes('l') ||
+        k.toLowerCase() === 'b'
+      );
+
       if (!levelKey) {
         throw new Error("Yêu cầu bắt buộc: File Excel của bạn cần có một cột ghi cấp độ (ví dụ: Cấp độ, Trình độ, Loại từ, Level, hoặc 當代). Hệ thống cần thông tin này để tạo bài tập chính xác.");
       }
@@ -99,11 +130,14 @@ export default function App() {
           if (!rawLevel) return null;
         }
 
+        const rawLesson = lessonKey ? String(row[lessonKey] || '').trim() : undefined;
+
         return {
           word: String(row[wordKey] || '').trim(),
-          pinyin: String(row[pinyinKey] || '').trim(),
+          pinyin: String(row[pinyinKey || ''] || '').trim(),
           meaning: String(row[meaningKey] || '').trim(),
           level,
+          lesson: rawLesson,
           category: 'Excel Import',
           tags: [],
           exampleSentence: String(row['Example'] || row['Ví dụ'] || row['Câu ví dụ'] || ''),
@@ -141,6 +175,7 @@ export default function App() {
   const [newExample, setNewExample] = useState('');
   const [newTags, setNewTags] = useState('');
   const [newLevel, setNewLevel] = useState<ProficiencyLevel>('當代1');
+  const [newLesson, setNewLesson] = useState('');
   const [newCategory, setNewCategory] = useState('Chưa phân loại');
   const [newNotes, setNewNotes] = useState('');
   const [newColor, setNewColor] = useState<string | undefined>(undefined);
@@ -165,6 +200,19 @@ export default function App() {
 
   const allCategories = Array.from(new Set(vocabulary.map(v => v.category || 'Chưa phân loại'))).sort();
 
+  const allLessonsForLevel = Array.from(new Set(
+    vocabulary
+      .filter(v => selectedLevel === 'All' || v.level === selectedLevel)
+      .map(v => v.lesson)
+      .filter((lesson): lesson is string => !!lesson)
+  )).sort((a: string, b: string) => {
+    // Try numeric sort if both are numbers
+    const numA = parseInt(a, 10);
+    const numB = parseInt(b, 10);
+    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+    return a.localeCompare(b);
+  });
+
   const filteredVocab = vocabulary.filter(v => {
     const searchLow = searchTerm.toLowerCase();
     const matchesSearch = (v.word || '').includes(searchTerm) || 
@@ -172,12 +220,13 @@ export default function App() {
       (v.meaning || '').toLowerCase().includes(searchLow) || 
       (v.tags || [])?.some(tag => tag.toLowerCase().includes(searchLow));
     const matchesLevel = selectedLevel === 'All' || v.level === selectedLevel;
+    const matchesLesson = selectedLesson === 'All' || v.lesson === selectedLesson;
     const matchesCategory = selectedCategory === 'All' || (v.category || 'Chưa phân loại') === selectedCategory;
     const matchesColor = selectedColor === 'All' || (v.color === (selectedColor === 'none' ? undefined : selectedColor));
     const matchesTags = selectedTags.length === 0 || selectedTags.every(tag => (v.tags || []).includes(tag));
     const isDue = !v.nextReviewAt || v.nextReviewAt <= Date.now();
     const matchesDue = !showDueOnly || isDue;
-    return matchesSearch && matchesLevel && matchesCategory && matchesColor && matchesTags && matchesDue;
+    return matchesSearch && matchesLevel && matchesLesson && matchesCategory && matchesColor && matchesTags && matchesDue;
   }).sort((a, b) => {
     if (sortBy === 'mastery') return (b.masteryScore || 0) - (a.masteryScore || 0);
     if (sortBy === 'alphabetical') return (a.word || '').localeCompare(b.word || '');
@@ -197,6 +246,7 @@ export default function App() {
         pinyin: newPinyin,
         meaning: newMeaning,
         level: newLevel,
+        lesson: newLesson || undefined,
         exampleSentence: newExample,
         category: newCategory,
         notes: newNotes,
@@ -211,6 +261,7 @@ export default function App() {
       setNewWord('');
       setNewPinyin('');
       setNewMeaning('');
+      setNewLesson('');
       setNewExample('');
       setNewNotes('');
       setNewTags('');
@@ -419,6 +470,21 @@ export default function App() {
         </div>
       </nav>
 
+      {/* Floating Scroll Top Button */}
+      <AnimatePresence>
+        {showScrollTop && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.5, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.5, y: 20 }}
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="fixed bottom-24 right-6 z-[60] w-12 h-12 bg-white text-slate-950 rounded-full shadow-2xl flex items-center justify-center hover:bg-slate-100 transition-all border border-slate-200"
+          >
+            <ArrowUp size={20} />
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {/* Mode Selection Modal */}
       <AnimatePresence>
         {isSelectingMode && (
@@ -434,7 +500,7 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-[40px] p-10 shadow-2xl"
+              className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-[32px] md:rounded-[40px] p-6 md:p-10 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
             >
               <div className="text-center mb-10">
                 <h3 className="text-2xl font-bold mb-2">Chọn chế độ luyện tập</h3>
@@ -693,12 +759,21 @@ export default function App() {
             />
           </div>
 
-          <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto no-scrollbar pb-2 lg:pb-0">
-            <div className="flex items-center gap-1 p-1 bg-slate-950/50 border border-slate-800/50 rounded-[18px] shrink-0">
+          <div className="flex items-center gap-2 w-full lg:w-auto overflow-hidden relative group">
+            <button 
+              onClick={() => scrollContainer(levelScrollRef, 'left')}
+              className="absolute left-2 z-20 p-1 bg-slate-900/80 rounded-full border border-slate-700 md:opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <ChevronLeft size={12} />
+            </button>
+            <div className="flex items-center gap-1 p-1 bg-slate-950/50 border border-slate-800/50 rounded-[18px] shrink-0 overflow-x-auto no-scrollbar scroll-smooth px-6 md:px-1" ref={levelScrollRef}>
               {['All', '當代1', '當代2', '當代3', '當代4', '當代5', '當代6'].map((level) => (
                 <button
                   key={level}
-                  onClick={() => setSelectedLevel(level as any)}
+                  onClick={() => {
+                    setSelectedLevel(level as any);
+                    setSelectedLesson('All');
+                  }}
                   className={cn(
                     "px-4 py-2 rounded-[14px] text-xs font-bold transition-all",
                     selectedLevel === level 
@@ -710,8 +785,15 @@ export default function App() {
                 </button>
               ))}
             </div>
+            <button 
+              onClick={() => scrollContainer(levelScrollRef, 'right')}
+              className="absolute right-2 z-20 p-1 bg-slate-900/80 rounded-full border border-slate-700 md:opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <ChevronRight size={12} />
+            </button>
+          </div>
 
-            <div className="w-[1px] h-6 bg-slate-800 mx-1 shrink-0" />
+          <div className="w-[1px] h-6 bg-slate-800 mx-1 shrink-0" />
 
             <button
               onClick={() => setShowDueOnly(!showDueOnly)}
@@ -761,14 +843,19 @@ export default function App() {
               </button>
             </div>
           </div>
-        </div>
 
         {allCategories.length > 0 && (
-          <div className="flex items-center gap-2 mb-4 overflow-hidden">
+          <div className="flex items-center gap-2 mb-4 relative group">
             <div className="p-2 border border-slate-800 rounded-lg bg-slate-900 shrink-0">
               <LayoutGrid size={14} className="text-indigo-400" />
             </div>
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+            <button 
+              onClick={() => scrollContainer(categoryScrollRef, 'left')}
+              className="absolute left-10 z-10 p-1 bg-slate-900/80 rounded-full border border-slate-700 md:opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <ChevronLeft size={12} />
+            </button>
+            <div className="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 scroll-smooth px-2" ref={categoryScrollRef}>
               {['All', ...allCategories].map(cat => (
                 <button
                   key={cat}
@@ -784,6 +871,59 @@ export default function App() {
                 </button>
               ))}
             </div>
+            <button 
+              onClick={() => scrollContainer(categoryScrollRef, 'right')}
+              className="absolute right-0 z-10 p-1 bg-slate-900/80 rounded-full border border-slate-700 md:opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <ChevronRight size={12} />
+            </button>
+          </div>
+        )}
+
+        {allLessonsForLevel.length > 0 && (
+          <div className="flex items-center gap-2 mb-4 relative group">
+            <div className="p-2 border border-slate-800 rounded-lg bg-slate-900 shrink-0">
+              <Book size={14} className="text-emerald-400" />
+            </div>
+            <button 
+              onClick={() => scrollContainer(lessonScrollRef, 'left')}
+              className="absolute left-10 z-10 p-1 bg-slate-900/80 rounded-full border border-slate-700 md:opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <ChevronLeft size={12} />
+            </button>
+            <div className="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 scroll-smooth px-2" ref={lessonScrollRef}>
+              <button
+                onClick={() => setSelectedLesson('All')}
+                className={cn(
+                  "px-4 py-1.5 rounded-full text-[10px] font-bold transition-all border shrink-0",
+                  selectedLesson === 'All'
+                    ? "bg-emerald-600 border-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                    : "bg-slate-900 border-slate-800 text-slate-500 hover:text-white"
+                )}
+              >
+                Tất cả các bài
+              </button>
+              {allLessonsForLevel.map(lesson => (
+                <button
+                  key={lesson}
+                  onClick={() => setSelectedLesson(lesson)}
+                  className={cn(
+                    "px-4 py-1.5 rounded-full text-[10px] font-bold transition-all border shrink-0",
+                    selectedLesson === lesson
+                      ? "bg-emerald-600 border-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                      : "bg-slate-900 border-slate-800 text-slate-500 hover:text-white"
+                  )}
+                >
+                  Bài {lesson}
+                </button>
+              ))}
+            </div>
+            <button 
+              onClick={() => scrollContainer(lessonScrollRef, 'right')}
+              className="absolute right-0 z-10 p-1 bg-slate-900/80 rounded-full border border-slate-700 md:opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <ChevronRight size={12} />
+            </button>
           </div>
         )}
 
@@ -1425,19 +1565,31 @@ export default function App() {
                     placeholder="VD: Chữ 'Học' có bộ 'Tử' là đứa trẻ đang ngồi học dưới mái nhà..."
                   />
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Category / Lesson</label>
-                  <input 
-                    type="text"
-                    list="category-suggestions"
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm"
-                    placeholder="e.g. Travel, Life, Lesson 1"
-                  />
-                  <datalist id="category-suggestions">
-                    {allCategories.map(cat => <option key={cat} value={cat} />)}
-                  </datalist>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Phân loại (Category)</label>
+                    <input 
+                      type="text"
+                      list="category-suggestions"
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm"
+                      placeholder="e.g. Travel, Life"
+                    />
+                    <datalist id="category-suggestions">
+                      {allCategories.map(cat => <option key={cat} value={cat} />)}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-2 font-black">Bài học (Lesson/Chapter)</label>
+                    <input 
+                      type="text"
+                      value={newLesson}
+                      onChange={(e) => setNewLesson(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-950 border border-emerald-900/30 rounded-xl focus:border-emerald-500 focus:outline-none transition-all text-sm text-emerald-400 font-bold"
+                      placeholder="e.g. Bài 1, Lesson 2"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Contemporary Chinese Level</label>
@@ -1557,7 +1709,7 @@ export default function App() {
                       </div>
                       <div className="text-center">
                         <p className="text-xs font-bold text-slate-300">Tải lên file Excel</p>
-                        <p className="text-[10px] text-slate-500 mt-1">Yêu cầu cột cấp độ (當代1-6)</p>
+                        <p className="text-[10px] text-slate-500 mt-1">Yêu cầu cột cấp độ (1-6) & khuyên dùng cột bài (Lesson)</p>
                       </div>
                       <input 
                         type="file" 
@@ -1580,8 +1732,9 @@ export default function App() {
                         <li>Cột 1: Chữ Hán (Word / Hanzi / Chữ Hán)</li>
                         <li>Cột 2: Phiên âm (Pinyin / Phiên âm)</li>
                         <li>Cột 3: Ý nghĩa (Meaning / Nghĩa)</li>
-                        <li className="text-indigo-400 font-bold">Cột 4: Cấp độ (Level / Trình độ / Loại từ / 當代) - BẮT BUỘC</li>
-                        <li className="text-slate-400 italic font-medium">Giá trị: 1-6 (Sẽ tự động chuyển thành 當代1-6)</li>
+                        <li className="text-indigo-400 font-bold">Cột 4: Cấp độ (Level / Trình độ) - BẮT BUỘC</li>
+                        <li className="text-emerald-400 font-bold">Cột 5: Bài (Lesson / Bài / L) - KHUYÊN DÙNG</li>
+                        <li className="text-slate-400 italic font-medium">Lưu ý: Mọi tên cột gần giống mô tả trên đều được chấp nhận</li>
                       </ul>
                     </div>
                   </div>

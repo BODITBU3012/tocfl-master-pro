@@ -18,6 +18,7 @@ export interface VocabularyItem {
   repetitionCount: number;
   masteryScore: number; // 0 to 100
   notes?: string;
+  lesson?: string;
   isSelected?: boolean;
   color?: string;
 }
