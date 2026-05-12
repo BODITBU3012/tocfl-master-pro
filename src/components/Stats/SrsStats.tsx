@@ -11,9 +11,10 @@ import { cn } from '../../lib/utils';
 interface SrsStatsProps {
   vocabulary: VocabularyItem[];
   onClose: () => void;
+  isDarkMode?: boolean;
 }
 
-export default function SrsStats({ vocabulary, onClose }: SrsStatsProps) {
+export default function SrsStats({ vocabulary, onClose, isDarkMode = true }: SrsStatsProps) {
   const stats = useMemo(() => {
     if (vocabulary.length === 0) return null;
 
@@ -115,22 +116,22 @@ export default function SrsStats({ vocabulary, onClose }: SrsStatsProps) {
         initial={{ opacity: 0, y: 100 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 100 }}
-        className="relative w-full max-w-6xl h-full md:h-[90vh] bg-slate-900 md:border md:border-slate-800 md:rounded-[40px] flex flex-col overflow-hidden shadow-2xl"
+        className="relative w-full max-w-6xl h-full md:h-[90vh] bg-white dark:bg-slate-900 md:border border-slate-200 dark:border-slate-800 md:rounded-[40px] flex flex-col overflow-hidden shadow-2xl"
       >
         {/* Header */}
-        <div className="p-6 md:p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50 backdrop-blur-xl sticky top-0 z-20">
+        <div className="p-6 md:p-8 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white/80 dark:bg-slate-900/50 backdrop-blur-xl sticky top-0 z-20">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-indigo-500/20 rounded-2xl flex items-center justify-center text-indigo-400 border border-indigo-500/20">
+            <div className="w-12 h-12 bg-indigo-500/10 dark:bg-indigo-500/20 rounded-2xl flex items-center justify-center text-indigo-500 dark:text-indigo-400 border border-indigo-500/20">
               <TrendingUp size={24} />
             </div>
             <div>
-              <h2 className="text-xl font-black text-white">Chỉ số Trí não</h2>
-              <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Hệ thống lặp lại ngắt quãng (SRS)</p>
+              <h2 className="text-xl font-black text-slate-900 dark:text-white">Chỉ số Trí não</h2>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-[0.2em]">Hệ thống lặp lại ngắt quãng (SRS)</p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="p-3 hover:bg-slate-800 rounded-2xl text-slate-500 hover:text-white transition-all group"
+            className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white transition-all group"
           >
             <X size={20} className="group-hover:rotate-90 transition-transform duration-300" />
           </button>
@@ -142,11 +143,11 @@ export default function SrsStats({ vocabulary, onClose }: SrsStatsProps) {
           {/* Hero Stats Section */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* Memory Strength Gauge */}
-            <div className="lg:col-span-1 bg-slate-950 border border-slate-800 p-6 rounded-[32px] flex flex-col items-center justify-center relative overflow-hidden group">
-              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+            <div className="lg:col-span-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-6 rounded-[32px] flex flex-col items-center justify-center relative overflow-hidden group shadow-xl shadow-slate-100/50 dark:shadow-none">
+              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity text-slate-400 dark:text-white">
                 <Brain size={80} />
               </div>
-              <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Sức mạnh trí nhớ</h3>
+              <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Sức mạnh trí nhớ</h3>
               <div className="relative w-32 h-32 flex items-center justify-center mb-4">
                 <svg className="w-full h-full -rotate-90">
                   <circle
@@ -156,7 +157,7 @@ export default function SrsStats({ vocabulary, onClose }: SrsStatsProps) {
                     stroke="currentColor"
                     strokeWidth="8"
                     fill="transparent"
-                    className="text-slate-900"
+                    className="text-slate-100 dark:text-slate-900"
                   />
                   <motion.circle
                     initial={{ strokeDashoffset: 365 }}
@@ -174,8 +175,8 @@ export default function SrsStats({ vocabulary, onClose }: SrsStatsProps) {
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-black text-white">{stats.memoryStrength}%</span>
-                  <span className="text-[8px] font-bold text-slate-500 uppercase">HP</span>
+                  <span className="text-3xl font-black text-slate-900 dark:text-white">{stats.memoryStrength}%</span>
+                  <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase">HP</span>
                 </div>
               </div>
               <p className="text-[10px] text-center text-slate-400 font-medium px-4">
@@ -198,16 +199,16 @@ export default function SrsStats({ vocabulary, onClose }: SrsStatsProps) {
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.1 + i * 0.05 }}
-                  className="p-5 bg-slate-950 border border-slate-800 rounded-3xl hover:border-slate-700 transition-colors"
+                  className="p-5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-3xl hover:border-slate-300 dark:hover:border-slate-700 transition-colors shadow-sm dark:shadow-none"
                 >
                   <div className="flex items-center gap-3 mb-3">
-                    <div className={cn("p-2 rounded-xl bg-slate-900 border border-slate-800", kpi.color)}>
+                    <div className={cn("p-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800", kpi.color)}>
                       <kpi.icon size={16} />
                     </div>
-                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{kpi.label}</span>
+                    <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">{kpi.label}</span>
                   </div>
-                  <div className="text-xl font-black text-white">{kpi.value}</div>
-                  <div className="text-[9px] text-slate-600 font-medium">{kpi.sub}</div>
+                  <div className="text-xl font-black text-slate-900 dark:text-white">{kpi.value}</div>
+                  <div className="text-[9px] text-slate-500 dark:text-slate-600 font-medium">{kpi.sub}</div>
                 </motion.div>
               ))}
             </div>
@@ -215,17 +216,17 @@ export default function SrsStats({ vocabulary, onClose }: SrsStatsProps) {
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Interval Distribution Chart */}
-            <div className="lg:col-span-8 bg-slate-950 border border-slate-800 rounded-[32px] p-6 md:p-8">
+            <div className="lg:col-span-8 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-[32px] p-6 md:p-8 shadow-xl shadow-slate-100/50 dark:shadow-none">
               <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     Cấu trúc khoảng cách
                   </h3>
-                  <p className="text-xs text-slate-500">Số lượng từ vựng chia theo số ngày ôn tập</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">Số lượng từ vựng chia theo số ngày ôn tập</p>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-1 bg-slate-900 border border-slate-800 rounded-full">
+                <div className="flex items-center gap-2 px-3 py-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full">
                   <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Intervals</span>
+                  <span className="text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-tighter">Intervals</span>
                 </div>
               </div>
               <div className="h-[280px] w-full">
@@ -299,10 +300,10 @@ export default function SrsStats({ vocabulary, onClose }: SrsStatsProps) {
                   </div>
                 ))}
               </div>
-              <div className="mt-8 pt-6 border-t border-slate-900">
-                 <div className="flex items-center justify-between text-[10px] font-black text-slate-500 uppercase tracking-widest">
+              <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-900">
+                 <div className="flex items-center justify-between text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                    <span>Thành thạo</span>
-                   <span className="text-emerald-400">{Math.round((stats.stages[3].value / stats.total) * 100)}%</span>
+                   <span className="text-emerald-600 dark:text-emerald-400">{Math.round((stats.stages[3].value / stats.total) * 100)}%</span>
                  </div>
               </div>
             </div>
@@ -310,11 +311,11 @@ export default function SrsStats({ vocabulary, onClose }: SrsStatsProps) {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Future Review Forecast */}
-            <div className="bg-slate-950 border border-slate-800 rounded-[32px] p-6 md:p-8">
+            <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-[32px] p-6 md:p-8 shadow-xl shadow-slate-100/50 dark:shadow-none">
               <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h3 className="text-lg font-bold text-white">Dự báo khối lượng</h3>
-                  <p className="text-xs text-slate-500">Từ vựng đến hạn trong 7 ngày tới</p>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Dự báo khối lượng</h3>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">Từ vựng đến hạn trong 7 ngày tới</p>
                 </div>
                 <div className="p-2 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400">
                   <Clock size={20} />
@@ -342,7 +343,14 @@ export default function SrsStats({ vocabulary, onClose }: SrsStatsProps) {
                       tick={{ fill: '#475569', fontSize: 10, fontWeight: 700 }} 
                     />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', fontSize: '11px', fontWeight: 700 }}
+                      contentStyle={{ 
+                        backgroundColor: isDarkMode ? '#020617' : '#ffffff', 
+                        border: isDarkMode ? '1px solid #1e293b' : '1px solid #e2e8f0', 
+                        borderRadius: '16px', 
+                        fontSize: '11px', 
+                        fontWeight: 700,
+                        color: isDarkMode ? '#f8fafc' : '#0f172a'
+                      }}
                     />
                     <Area 
                       type="monotone" 
@@ -358,11 +366,11 @@ export default function SrsStats({ vocabulary, onClose }: SrsStatsProps) {
             </div>
 
             {/* Mastery Progression */}
-            <div className="bg-slate-950 border border-slate-800 rounded-[32px] p-6 md:p-8">
+            <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-[32px] p-6 md:p-8 shadow-xl shadow-slate-100/50 dark:shadow-none">
               <div className="flex items-center justify-between mb-8">
                 <div>
-                  <h3 className="text-lg font-bold text-white">Tiến độ học tập</h3>
-                  <p className="text-xs text-slate-500">Trung bình điểm thành thạo theo thời gian</p>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Tiến độ học tập</h3>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">Trung bình điểm thành thạo theo thời gian</p>
                 </div>
                 <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400">
                   <Sparkles size={20} />
@@ -391,7 +399,14 @@ export default function SrsStats({ vocabulary, onClose }: SrsStatsProps) {
                       tick={{ fill: '#475569', fontSize: 10, fontWeight: 700 }} 
                     />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#020617', border: '1px solid #1e293b', borderRadius: '16px', fontSize: '11px', fontWeight: 700 }}
+                      contentStyle={{ 
+                        backgroundColor: isDarkMode ? '#020617' : '#ffffff', 
+                        border: isDarkMode ? '1px solid #1e293b' : '1px solid #e2e8f0', 
+                        borderRadius: '16px', 
+                        fontSize: '11px', 
+                        fontWeight: 700,
+                        color: isDarkMode ? '#f8fafc' : '#0f172a'
+                      }}
                     />
                     <Area 
                       type="monotone" 

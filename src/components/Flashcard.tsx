@@ -33,12 +33,13 @@ export function Flashcard({ word, pinyin, meaning, wordType, isFlipped: controll
   return (
     <div className={cn("flex flex-col items-center gap-6 w-full max-w-sm mx-auto", className)} id="flashcard-container">
       <div 
-        className="relative w-full aspect-[4/3] perspective-1000 group cursor-pointer"
+        className="relative w-full aspect-[4/3] perspective-1000 group cursor-pointer touch-manipulation"
         onClick={handleToggle}
         id="flashcard-flip-area"
       >
         <motion.div
           className="w-full h-full relative preserve-3d"
+          style={{ transformStyle: 'preserve-3d' }}
           initial={false}
           animate={{ rotateY: isFlipped ? 180 : 0 }}
           transition={{ 
@@ -50,28 +51,29 @@ export function Flashcard({ word, pinyin, meaning, wordType, isFlipped: controll
         >
           {/* Front Side */}
           <div 
-            className="absolute inset-0 backface-hidden bg-slate-900 border-2 border-slate-800 rounded-[32px] p-8 flex flex-col items-center justify-center text-center shadow-2xl overflow-hidden"
+            className="absolute inset-0 backface-hidden bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-[32px] p-6 md:p-8 flex flex-col items-center justify-center text-center shadow-2xl overflow-hidden"
+            style={{ WebkitBackfaceVisibility: 'hidden', backfaceVisibility: 'hidden' }}
             id="flashcard-front"
           >
             {/* Decoration */}
-            <div className="absolute -top-12 -right-12 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl" />
-            <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-fuchsia-500/10 rounded-full blur-2xl" />
+            <div className="absolute -top-12 -right-12 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-fuchsia-500/10 rounded-full blur-2xl pointer-events-none" />
             
-            <div className="relative z-10 flex flex-col items-center">
+            <div className="relative z-10 flex flex-col items-center w-full">
               {wordType && (
-                <span className="px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[9px] font-bold uppercase tracking-[0.2em] rounded-full mb-4">
+                <span className="px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-500 dark:text-indigo-400 text-[9px] font-bold uppercase tracking-[0.2em] rounded-full mb-4">
                   {wordType}
                 </span>
               )}
-              <h2 className="text-6xl font-black text-white font-display-zh mb-3 tracking-tight">
+              <h2 className="text-5xl md:text-6xl font-black text-slate-900 dark:text-white font-display-zh mb-3 tracking-tight break-words max-w-full">
                 {word}
               </h2>
-              <p className="text-xl font-mono text-indigo-400 font-medium tracking-[0.2em] uppercase">
+              <p className="text-lg md:text-xl font-mono text-indigo-500 dark:text-indigo-400 font-medium tracking-[0.2em] uppercase">
                 {pinyin}
               </p>
             </div>
 
-            <div className="absolute bottom-6 flex items-center gap-2 text-slate-600 text-[10px] font-bold uppercase tracking-widest group-hover:text-slate-400 transition-colors">
+            <div className="absolute bottom-6 flex items-center gap-2 text-slate-400 dark:text-slate-600 text-[10px] font-bold uppercase tracking-widest transition-colors group-hover:text-indigo-500">
               <RefreshCw size={12} className="animate-spin-slow" />
               <span>Chạm để lật</span>
             </div>
@@ -79,18 +81,23 @@ export function Flashcard({ word, pinyin, meaning, wordType, isFlipped: controll
 
           {/* Back Side */}
           <div 
-            className="absolute inset-0 backface-hidden bg-indigo-600 rounded-[32px] p-8 flex flex-col items-center justify-center text-center shadow-2xl rotate-y-180 border-2 border-indigo-500/50 overflow-hidden"
+            className="absolute inset-0 backface-hidden bg-indigo-600 rounded-[32px] p-6 md:p-8 flex flex-col items-center justify-center text-center shadow-2xl rotate-y-180 border-2 border-indigo-500/50 overflow-hidden"
+            style={{ 
+              WebkitBackfaceVisibility: 'hidden', 
+              backfaceVisibility: 'hidden',
+              transform: 'rotateY(180deg) translateZ(1px)' // Small translateZ helps some browsers
+            }}
             id="flashcard-back"
           >
              {/* Decoration */}
-             <div className="absolute inset-0 bg-linear-to-br from-indigo-500 to-indigo-700" />
+             <div className="absolute inset-0 bg-linear-to-br from-indigo-500 to-indigo-700 pointer-events-none" />
              <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.2)_0%,transparent_50%)]" />
 
-            <div className="relative z-10">
+            <div className="relative z-10 w-full">
               <h3 className="text-[10px] font-bold text-indigo-200 uppercase tracking-[0.3em] mb-4">
                 Ý NGHĨA
               </h3>
-              <p className="text-2xl font-bold text-white leading-relaxed px-4">
+              <p className="text-xl md:text-2xl font-bold text-white leading-relaxed px-2 break-words">
                 {meaning}
               </p>
             </div>

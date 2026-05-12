@@ -562,7 +562,7 @@ export default function QuizEngine({ vocabulary, mode, preferredTypes, onAnswer,
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
-              className="bg-slate-900 border border-slate-800 rounded-3xl md:rounded-[40px] p-6 md:p-16 relative overflow-hidden"
+              className="bg-slate-900 border border-slate-800 rounded-3xl md:rounded-[40px] p-6 md:p-16 relative overflow-hidden shadow-2xl"
             >
               <div className="absolute top-6 left-6 md:top-10 md:left-10 opacity-5">
                 <Sparkles size={32} className="md:w-10 md:h-10" />
@@ -612,22 +612,22 @@ export default function QuizEngine({ vocabulary, mode, preferredTypes, onAnswer,
                     const isSelected = selectedAnswer === option;
                     
                     return (
-                      <button
-                        key={i}
-                        disabled={isAnswered}
-                        onClick={() => handleAnswer(option)}
-                        className={cn(
-                          "w-full p-4 md:p-5 text-left rounded-xl md:rounded-2xl border transition-all flex items-center justify-between group",
-                          !isAnswered && "border-slate-800 bg-slate-950/50 hover:border-indigo-500/50 hover:bg-slate-800/30",
-                          isAnswered && isCorrect && "border-emerald-500 bg-emerald-500/10 text-emerald-400",
-                          isAnswered && isSelected && !isCorrect && "border-red-500 bg-red-500/10 text-red-400",
-                          isAnswered && !isSelected && !isCorrect && "border-slate-800 opacity-30"
-                        )}
-                      >
-                        <span className="font-medium text-base md:text-lg font-zh">{option}</span>
-                        {isAnswered && isCorrect && <Check size={18} className="md:w-5 md:h-5" />}
-                        {isSelected && !isCorrect && isAnswered && <X size={18} className="md:w-5 md:h-5" />}
-                      </button>
+                        <button
+                          key={i}
+                          disabled={isAnswered}
+                          onClick={() => handleAnswer(option)}
+                          className={cn(
+                            "w-full p-4 md:p-5 text-left rounded-xl md:rounded-2xl border transition-all flex items-center justify-between group",
+                            !isAnswered && "border-slate-800 bg-slate-950/50 hover:border-indigo-500/50 hover:bg-slate-800/30 shadow-sm",
+                            isAnswered && isCorrect && "border-emerald-500 bg-emerald-500/10 text-emerald-400",
+                            isAnswered && isSelected && !isCorrect && "border-red-500 bg-red-500/10 text-red-400",
+                            isAnswered && !isSelected && !isCorrect && "border-slate-800 opacity-30"
+                          )}
+                        >
+                          <span className="font-medium text-base md:text-lg font-zh text-slate-100">{option}</span>
+                          {isAnswered && isCorrect && <Check size={18} className="md:w-5 md:h-5" />}
+                          {isSelected && !isCorrect && isAnswered && <X size={18} className="md:w-5 md:h-5" />}
+                        </button>
                     );
                   })}
                 </div>
@@ -651,7 +651,7 @@ export default function QuizEngine({ vocabulary, mode, preferredTypes, onAnswer,
                              "w-full p-4 rounded-xl border transition-all text-center font-zh text-lg",
                              isMatched ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-400 opacity-50" : 
                              isSelected ? "border-indigo-500 bg-indigo-500/10 text-indigo-400 shadow-lg shadow-indigo-500/10" :
-                             "border-slate-800 bg-slate-950/50 hover:border-slate-700"
+                             "border-slate-800 bg-slate-950/50 hover:border-slate-700 text-slate-100 shadow-sm"
                            )}
                          >
                            {word}
@@ -675,7 +675,7 @@ export default function QuizEngine({ vocabulary, mode, preferredTypes, onAnswer,
                              "w-full p-4 rounded-xl border transition-all text-center text-sm font-medium",
                              isMatched ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-400 opacity-50" : 
                              isSelected ? "border-indigo-500 bg-indigo-500/10 text-indigo-400 shadow-lg shadow-indigo-500/10" :
-                             "border-slate-800 bg-slate-950/50 hover:border-slate-700"
+                             "border-slate-800 bg-slate-950/50 hover:border-slate-700 text-slate-300"
                            )}
                          >
                            {meaning}
@@ -766,14 +766,14 @@ export default function QuizEngine({ vocabulary, mode, preferredTypes, onAnswer,
                       }}
                       className="flex flex-col gap-4"
                     >
-                      <textarea
-                        autoFocus
-                        value={typingInput}
-                        onChange={(e) => setTypingInput(e.target.value)}
-                        placeholder="Gõ bằng chữ Hán..."
-                        rows={1}
-                        className="w-full p-6 bg-slate-950 border-2 border-slate-800 rounded-3xl text-xl md:text-2xl font-bold text-slate-100 focus:border-indigo-500 transition-all outline-hidden text-center resize-none"
-                      />
+                    <textarea
+                      autoFocus
+                      value={typingInput}
+                      onChange={(e) => setTypingInput(e.target.value)}
+                      placeholder="Gõ bằng chữ Hán..."
+                      rows={1}
+                      className="w-full p-6 bg-slate-950 border-2 border-slate-800 rounded-3xl text-xl md:text-2xl font-bold text-slate-100 focus:border-indigo-500 transition-all outline-hidden text-center resize-none"
+                    />
                       <button
                         type="submit"
                         disabled={!typingInput.trim()}
@@ -788,7 +788,7 @@ export default function QuizEngine({ vocabulary, mode, preferredTypes, onAnswer,
                       isLastAnswerCorrect ? "border-emerald-500 bg-emerald-500/10" : "border-red-500 bg-red-500/10"
                     )}>
                       <div className="flex flex-col items-center gap-3">
-                         <span className="text-xl md:text-3xl font-bold text-center leading-relaxed font-zh">
+                         <span className="text-xl md:text-3xl font-bold text-center leading-relaxed font-zh text-white">
                            {selectedAnswer}
                          </span>
                          {isLastAnswerCorrect ? (
@@ -841,7 +841,7 @@ export default function QuizEngine({ vocabulary, mode, preferredTypes, onAnswer,
                   
                   <button
                     onClick={handleNext}
-                    className="w-full py-5 bg-slate-100 text-slate-900 rounded-2xl font-black text-lg flex items-center justify-center gap-3 hover:bg-white transition-all shadow-xl shadow-white/5 active:scale-[0.98]"
+                    className="w-full py-5 bg-white text-slate-900 rounded-2xl font-black text-lg flex items-center justify-center gap-3 hover:bg-slate-100 transition-all shadow-xl shadow-white/5 active:scale-[0.98]"
                   >
                     {currentStep < questions.length - 1 ? "TIẾP TỤC" : "HOÀN THÀNH"}
                     <ArrowRight size={22} strokeWidth={3} />

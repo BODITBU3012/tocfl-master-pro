@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Timer, Trophy, AlertCircle, Volume2, Plus, Search, BookOpen, Brain, Trash2, ChevronRight, X, Sparkles, Filter, LayoutGrid, List, TrendingUp, Calendar, Loader2, FileText, Upload, Check, Clock, Music, Headphones, Flame, Bell, FileSpreadsheet, Book, ArrowUp, ChevronLeft } from 'lucide-react';
+import { Timer, Trophy, AlertCircle, Volume2, Plus, Search, BookOpen, Brain, Trash2, ChevronRight, X, Sparkles, Filter, LayoutGrid, List, TrendingUp, Calendar, Loader2, FileText, Upload, Check, Clock, Music, Headphones, Flame, Bell, FileSpreadsheet, Book, ArrowUp, ChevronLeft, Moon, Sun } from 'lucide-react';
 import { read, utils } from 'xlsx';
 import { useVocabulary } from './hooks/useVocabulary';
 import { useStreak } from './hooks/useStreak';
@@ -18,6 +18,8 @@ export default function App() {
   const selectedVocabCount = vocabulary.filter(v => v.isSelected).length;
 
   const dueVocabCount = vocabulary.filter(v => !v.nextReviewAt || v.nextReviewAt <= Date.now()).length;
+
+  const isDarkMode = true;
 
   const [expandedVocabId, setExpandedVocabId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -49,6 +51,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState<'card' | 'compact'>('card');
   const [isStatsOpen, setIsStatsOpen] = useState(false);
   const [vocabToDelete, setVocabToDelete] = useState<VocabularyItem | null>(null);
+  
   const [showScrollTop, setShowScrollTop] = useState(false);
   const excelInputRef = useRef<HTMLInputElement>(null);
   const levelScrollRef = useRef<HTMLDivElement>(null);
@@ -509,7 +512,7 @@ export default function App() {
   const timeGoalProgress = Math.min(100, Math.round((todayStudyTime / (studyTimeGoal * 60)) * 100));
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500/30">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-indigo-500/30 transition-colors duration-300">
       <AnimatePresence>
         {successMessage && (
           <motion.div 
@@ -556,7 +559,7 @@ export default function App() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.5, y: 20 }}
             onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="fixed bottom-24 right-6 z-[60] w-12 h-12 bg-white text-slate-950 rounded-full shadow-2xl flex items-center justify-center hover:bg-slate-100 transition-all border border-slate-200"
+            className="fixed bottom-24 right-6 z-[60] w-12 h-12 bg-slate-900 text-white rounded-full shadow-2xl flex items-center justify-center hover:bg-slate-800 transition-all border border-slate-800"
           >
             <ArrowUp size={20} />
           </motion.button>
@@ -566,35 +569,36 @@ export default function App() {
       {/* Mode Selection Modal */}
       <AnimatePresence>
         {isSelectingMode && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-xl">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsSelectingMode(false)}
-              className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+              className="absolute inset-0 bg-slate-950/80"
             />
             <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-[32px] md:rounded-[40px] p-6 md:p-10 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar"
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-[48px] p-8 md:p-12 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] max-h-[90vh] overflow-y-auto custom-scrollbar"
             >
-              <div className="text-center mb-10">
-                <h3 className="text-2xl font-bold mb-2">Chọn chế độ luyện tập</h3>
-                <p className="text-slate-400 text-sm">Nâng cao hiệu quả học tập từ vựng với các thử thách đặc biệt.</p>
+              <div className="text-center mb-12">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-black uppercase tracking-[0.2em] rounded-full mb-6">
+                  Practice Engine v2
+                </div>
+                <h3 className="text-3xl md:text-5xl font-black text-white tracking-tight mb-4">Chế độ luyện tập</h3>
+                <p className="text-slate-500 text-sm max-w-md mx-auto">Chọn phương pháp phù hợp nhất để củng cố kiến thức của bạn ngay hôm nay.</p>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
                 {[
-                  { id: 'standard', title: 'Tiêu chuẩn', icon: Brain, desc: 'Hỗn hợp các loại bài tập ngẫu nhiên.', color: 'text-indigo-400' },
-                  { id: 'flashcards', title: 'Flashcards', icon: BookOpen, desc: 'Học bằng cách lật thẻ ghi nhớ.', color: 'text-fuchsia-400' },
-                  { id: 'typing', title: 'Gõ chữ', icon: FileText, desc: 'Nhập từ tiếng Trung từ ý nghĩa.', color: 'text-cyan-400' },
-                  { id: 'tone-master', title: 'Luyện Thanh điệu', icon: Music, desc: 'Chuyên biệt cho việc học cách đọc pinyin.', color: 'text-violet-400' },
-                  { id: 'ear-training', title: 'Luyện Nghe', icon: Headphones, desc: 'Nghe phát âm và chọn ý nghĩa chính xác.', color: 'text-sky-400' },
-                  { id: 'srs', title: `Sống sót SRS (${dueVocabCount})`, icon: Sparkles, desc: 'Ôn tập các từ đã đến hạn ghi nhớ.', color: 'text-emerald-400', disabled: dueVocabCount === 0 },
-                  { id: 'timed', title: 'Siêu tốc', icon: Timer, desc: 'Trả lời nhanh nhiều nhất trong 60 giây.', color: 'text-amber-400' },
-                  { id: 'mistake-review', title: 'Khắc phục lỗi', icon: AlertCircle, desc: 'Tập trung vào các từ bạn thường sai.', color: 'text-red-400' }
+                  { id: 'standard', title: 'Tiêu chuẩn', icon: Brain, desc: 'Bài tập tổng hợp ngẫu nhiên.', color: 'indigo' },
+                  { id: 'flashcards', title: 'Thẻ ghi nhớ', icon: BookOpen, desc: 'Lật thẻ để ghi nhớ từ vựng.', color: 'fuchsia' },
+                  { id: 'typing', title: 'Luyện gõ', icon: FileText, desc: 'Nhập chữ Hán từ ý nghĩa.', color: 'cyan' },
+                  { id: 'tone-master', title: 'Thanh điệu', icon: Music, desc: 'Chuyên sâu về dấu và âm đọc.', color: 'violet' },
+                  { id: 'ear-training', title: 'Luyện nghe', icon: Headphones, desc: 'Nghe và nhận diện từ vựng.', color: 'sky' },
+                  { id: 'srs', title: `Đến hạn (${dueVocabCount})`, icon: Sparkles, desc: 'Ôn tập theo thuật toán SRS.', color: 'emerald', disabled: dueVocabCount === 0 },
                 ].map((mode) => (
                   <button
                     key={mode.id}
@@ -605,25 +609,47 @@ export default function App() {
                       setIsQuizMode(true);
                     }}
                     className={cn(
-                      "flex flex-col items-center p-6 bg-slate-950 border border-slate-800 rounded-3xl transition-all text-center group",
+                      "flex items-start gap-5 p-6 rounded-3xl border transition-all text-left group",
                       (mode as any).disabled 
-                         ? "opacity-50 cursor-not-allowed" 
-                         : "hover:border-indigo-500/50 hover:bg-slate-800/20 shadow-hover group"
+                         ? "opacity-40 cursor-not-allowed border-slate-800" 
+                         : cn(
+                            "bg-slate-950/50 border-slate-800 hover:border-white/20 hover:bg-slate-800/40 social-card-glow",
+                            mode.color === 'indigo' && "hover:shadow-indigo-500/10",
+                            mode.color === 'fuchsia' && "hover:shadow-fuchsia-500/10",
+                            mode.color === 'emerald' && "hover:shadow-emerald-500/10"
+                         )
                     )}
                   >
-                    <mode.icon className={cn("mb-4 group-hover:scale-110 transition-transform", mode.color)} size={32} />
-                    <h4 className="font-bold text-sm mb-2">{mode.title}</h4>
-                    <p className="text-[10px] text-slate-500 leading-relaxed">{mode.desc}</p>
+                    <div className={cn(
+                      "w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110",
+                      {
+                        'bg-indigo-500/10 text-indigo-400': mode.color === 'indigo',
+                        'bg-fuchsia-500/10 text-fuchsia-400': mode.color === 'fuchsia',
+                        'bg-cyan-500/10 text-cyan-400': mode.color === 'cyan',
+                        'bg-violet-500/10 text-violet-400': mode.color === 'violet',
+                        'bg-sky-500/10 text-sky-400': mode.color === 'sky',
+                        'bg-emerald-500/10 text-emerald-400': mode.color === 'emerald',
+                      }[mode.color]
+                    )}>
+                      <mode.icon size={28} />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-black text-white text-lg mb-1">{mode.title}</h4>
+                      <p className="text-xs text-slate-500 leading-snug">{mode.desc}</p>
+                    </div>
                   </button>
                 ))}
               </div>
 
               {/* Question Type Preferences (Only for certain modes) */}
               {['standard', 'srs', 'mistake-review', 'timed'].includes(practiceMode || '') && (
-                <div className="mb-8 p-6 bg-slate-950/50 border border-slate-800 rounded-[24px]">
-                   <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                     <Brain size={12} className="text-indigo-400" /> Cấu hình câu hỏi
-                   </h4>
+                <div className="mb-10 p-8 bg-slate-950/40 border border-slate-800 rounded-[32px]">
+                   <div className="flex items-center justify-between mb-6">
+                     <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] flex items-center gap-2">
+                       <Plus size={12} className="text-indigo-400" /> Tùy chỉnh câu hỏi
+                     </h4>
+                     <span className="text-[10px] text-slate-600 font-bold italic">Ít nhất 1 loại</span>
+                   </div>
                    <div className="flex flex-wrap gap-2">
                      {ALL_QUESTION_TYPES.map(type => {
                        const isSelected = preferredTypes.includes(type);
@@ -631,11 +657,11 @@ export default function App() {
                          'multiple-choice': 'Trắc nghiệm',
                          'fill-in-the-blank': 'Điền từ',
                          'typing': 'Gõ phím',
-                         'tone-selection': 'Chọn thanh điệu',
-                         'audio-to-meaning': 'Luyện nghe',
-                         'hanzi-to-pinyin': 'Hán tự -> Pinyin',
+                         'tone-selection': 'Thanh điệu',
+                         'audio-to-meaning': 'Nghe hiểu',
+                         'hanzi-to-pinyin': 'Pinyin',
                          'matching': 'Ghép cặp',
-                         'sentence-completion': 'Hoàn thành câu'
+                         'sentence-completion': 'Câu'
                        };
                        
                        return (
@@ -651,26 +677,28 @@ export default function App() {
                              }
                            }}
                            className={cn(
-                             "px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all border flex items-center gap-1.5",
+                             "px-4 py-2 rounded-xl text-[10px] font-black transition-all border flex items-center gap-2",
                              isSelected 
-                               ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20" 
-                               : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300 hover:border-slate-700"
+                               ? "bg-white text-slate-950 border-white shadow-xl shadow-white/10" 
+                               : "bg-slate-900 border-slate-800 text-slate-500 hover:text-white"
                            )}
                          >
-                           {isSelected && <Check size={10} strokeWidth={4} />}
+                           {isSelected && <Check size={12} strokeWidth={4} />}
                            {labelMap[type] || type}
                          </button>
                        );
                      })}
                    </div>
-                   <p className="text-[9px] text-slate-600 mt-4 italic">* Hệ thống sẽ ưu tiên các loại câu hỏi bạn chọn trong các chế độ luyện tập hỗn hợp.</p>
                 </div>
               )}
 
               <button 
                 onClick={() => setIsSelectingMode(false)}
-                className="w-full py-4 text-slate-500 font-bold hover:text-slate-100 transition-colors"
+                className="w-full py-5 text-slate-500 font-black text-sm uppercase tracking-[0.3em] hover:text-white transition-all flex items-center justify-center gap-2 group"
               >
+                <div className="w-8 h-8 rounded-full bg-slate-800/50 flex items-center justify-center group-hover:bg-red-500/20 transition-all">
+                  <X size={14} className="group-hover:text-red-400" />
+                </div>
                 Hủy bỏ
               </button>
             </motion.div>
@@ -692,6 +720,7 @@ export default function App() {
           <SrsStats 
             vocabulary={vocabulary} 
             onClose={() => setIsStatsOpen(false)} 
+            isDarkMode={isDarkMode}
           />
         )}
       </AnimatePresence>
@@ -704,52 +733,63 @@ export default function App() {
           <motion.div 
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            className="md:col-span-12 lg:col-span-8 bg-slate-900 border border-slate-800 rounded-[32px] p-8 md:p-12 relative overflow-hidden group shadow-2xl"
+            className="md:col-span-12 lg:col-span-8 bg-slate-900 border border-slate-800 rounded-[48px] p-10 md:p-16 relative overflow-hidden group shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)]"
           >
-            <div className="absolute -top-40 -left-40 w-96 h-96 bg-indigo-500/10 blur-[120px] rounded-full group-hover:bg-indigo-500/15 transition-colors" />
-            <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-fuchsia-500/10 blur-[120px] rounded-full group-hover:bg-fuchsia-500/15 transition-colors" />
+            {/* Ambient Background Elements */}
+            <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-indigo-500/10 blur-[140px] rounded-full -translate-y-1/2 translate-x-1/4 group-hover:bg-indigo-500/15 transition-colors duration-700" />
+            <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-fuchsia-500/5 blur-[120px] rounded-full translate-y-1/3 -translate-x-1/4 group-hover:bg-fuchsia-500/10 transition-colors duration-700" />
             
-            <div className="relative z-10 max-w-2xl">
-              <span className="inline-block px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-bold uppercase tracking-widest rounded-full mb-6">
-                Learning Dashboard
-              </span>
-              
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-10">
+                <div className="flex -space-x-2">
+                  <div className="w-8 h-8 rounded-full border-2 border-slate-900 bg-indigo-500 flex items-center justify-center text-[10px] font-bold text-white">AI</div>
+                  <div className="w-8 h-8 rounded-full border-2 border-slate-900 bg-fuchsia-500 flex items-center justify-center text-[10px] font-bold text-white">臺</div>
+                </div>
+                <div className="h-4 w-px bg-slate-800 mx-2" />
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Hệ thống quản trị ngôn ngữ</span>
+              </div>
 
-              <h2 className="text-4xl md:text-7xl font-black text-white leading-[1.1] mb-8">
-                Học tiếng Đài<br />
-                <span className="text-slate-500">Dễ dàng hơn.</span>
-              </h2>
-              
-              <div className="flex flex-wrap gap-4 mt-12">
+              <h1 className="text-5xl md:text-8xl font-black text-white leading-[0.9] tracking-tighter mb-14">
+                Làm chủ<br/>
+                <span className="text-slate-500">Đài Ngữ.</span>
+              </h1>
+
+              <div className="flex flex-wrap items-center gap-6">
                 <button 
                   onClick={() => setIsSelectingMode(true)}
                   disabled={vocabulary.length < 1}
-                  className="px-8 md:px-10 py-5 md:py-6 bg-white text-slate-950 rounded-2xl md:rounded-3xl font-black text-lg hover:scale-105 active:scale-95 transition-all shadow-white/10 shadow-2xl disabled:opacity-50 disabled:hover:scale-100 flex items-center gap-3"
+                  className="px-10 py-6 bg-white text-slate-950 rounded-3xl font-black text-xl hover:scale-105 hover:shadow-[0_20px_40px_-12px_rgba(255,255,255,0.3)] active:scale-95 transition-all flex items-center gap-4 group/btn disabled:opacity-50 disabled:hover:scale-100"
                 >
-                  <Brain size={24} />
-                  Học ngay
+                  <div className="w-10 h-10 bg-slate-950 rounded-xl flex items-center justify-center text-white group-hover/btn:rotate-12 transition-transform">
+                    <Brain size={24} />
+                  </div>
+                  Bắt đầu học
                 </button>
-                <div className="flex gap-3">
+                
+                <div className="flex items-center gap-2 p-2 bg-slate-950/40 backdrop-blur-xl border border-slate-800/50 rounded-[32px]">
                   <button 
                     onClick={() => setIsAdding(true)}
-                    className="px-6 py-5 bg-slate-800 text-white rounded-2xl md:rounded-3xl font-bold hover:bg-slate-700 transition-all flex items-center justify-center border border-slate-700 gap-2"
+                    className="w-14 h-14 bg-slate-800 border border-slate-700 text-white rounded-2xl flex items-center justify-center hover:bg-slate-700 hover:border-slate-600 transition-all group/plus"
+                    title="Thêm từ mới"
                   >
-                    <Plus size={20} />
-                    <span className="hidden sm:inline">Thêm từ</span>
+                    <Plus size={24} className="group-hover/plus:rotate-90 transition-transform" />
                   </button>
                   <button 
                     onClick={() => setIsBulkImporting(true)}
-                    className="px-6 py-5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-2xl md:rounded-3xl font-bold hover:bg-indigo-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                    className="w-14 h-14 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-2xl flex items-center justify-center hover:bg-indigo-500 hover:text-white transition-all"
+                    title="Nhập hàng loạt"
                   >
-                    <FileSpreadsheet size={20} />
-                    <span className="hidden sm:inline">Nhập hàng loạt</span>
+                    <FileSpreadsheet size={22} />
                   </button>
+                  <div className="w-px h-8 bg-slate-800 mx-2" />
                   <button 
                     onClick={() => setIsAudioBankOpen(true)}
-                    className="px-6 py-5 bg-linear-to-br from-indigo-500/10 to-fuchsia-500/10 border border-slate-800 text-fuchsia-400 rounded-2xl md:rounded-3xl font-bold hover:border-fuchsia-500/30 hover:bg-slate-900 transition-all flex items-center justify-center gap-2"
+                    className="pl-5 pr-7 h-14 bg-linear-to-br from-indigo-500/10 to-fuchsia-500/10 text-fuchsia-400 rounded-2xl font-bold flex items-center gap-3 hover:border-fuchsia-500/30 transition-all"
                   >
-                    <Headphones size={20} />
-                    <span className="hidden sm:inline">Bài nghe</span>
+                    <div className="w-8 h-8 rounded-full bg-fuchsia-500/20 flex items-center justify-center">
+                      <Headphones size={16} />
+                    </div>
+                    <span className="text-sm">Bài nghe</span>
                   </button>
                 </div>
               </div>
@@ -759,30 +799,33 @@ export default function App() {
           {/* Key Stats Cards */}
           <div className="md:col-span-12 lg:col-span-4 flex flex-col gap-6">
             {/* Minimal Stat Card */}
-            <div className="flex-1 bg-slate-900 border border-slate-800 rounded-[32px] p-8 flex flex-col justify-between hover:border-slate-700 transition-colors group/card relative">
-              <div className="flex items-center justify-between">
-                <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Tiến độ tổng quát</h3>
+            <div className="flex-1 bg-slate-900 border border-slate-800 rounded-[40px] p-8 md:p-10 flex flex-col justify-between hover:border-slate-700 transition-all duration-500 group/card relative shadow-2xl">
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
+                  <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Tiến độ học thuật</h3>
+                </div>
                 <button 
                   onClick={() => setIsStatsOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] font-bold rounded-full hover:bg-indigo-500 hover:text-white transition-all shadow-indigo-500/20 shadow-lg"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-bold rounded-full hover:bg-slate-700 hover:text-white transition-all shadow-lg"
                 >
                   <TrendingUp size={12} />
-                  Chi tiết
+                  Phân tích
                 </button>
               </div>
               <div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-6xl font-black text-white">{masteryStats.total}</span>
-                  <span className="text-slate-500 text-sm font-bold tracking-widest uppercase">Vốn từ</span>
+                <div className="flex items-baseline gap-3">
+                  <span className="text-7xl font-black text-white tracking-tighter leading-none">{masteryStats.total}</span>
+                  <span className="text-slate-600 text-sm font-bold tracking-widest uppercase">Từ vựng</span>
                 </div>
-                <div className="flex flex-wrap gap-2 mt-6">
-                  <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/15 rounded-full flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">{masteryStats.mastered} Mastered</span>
+                <div className="flex flex-wrap gap-2 mt-8">
+                  <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center gap-3">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">{masteryStats.mastered} Thành thạo</span>
                   </div>
-                  <div className="px-3 py-1 bg-amber-500/10 border border-amber-500/15 rounded-full flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
-                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">{masteryStats.due} Due Review</span>
+                  <div className="px-4 py-2 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center gap-3">
+                    <div className="w-2 h-2 bg-amber-500 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.5)]" />
+                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">{masteryStats.due} Cần ôn tập</span>
                   </div>
                 </div>
               </div>
@@ -796,74 +839,70 @@ export default function App() {
                   setIsQuizMode(true);
                 }}
                 disabled={masteryStats.due === 0}
-                className="group bg-linear-to-br from-indigo-600 to-fuchsia-600 rounded-[32px] p-6 text-white text-left relative overflow-hidden shadow-2xl hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:hover:scale-100"
+                className="group bg-linear-to-br from-indigo-500 to-indigo-700 rounded-[40px] p-7 text-white text-left relative overflow-hidden shadow-2xl hover:scale-[1.05] active:scale-95 transition-all disabled:opacity-50 disabled:hover:scale-100"
               >
-                <div className="absolute top-0 right-0 p-4 opacity-20 -rotate-12 group-hover:rotate-0 transition-transform">
-                  <Sparkles size={32} />
-                </div>
-                <h4 className="text-[8px] font-bold text-white/70 uppercase tracking-widest mb-1 relative z-10">Smart Review</h4>
-                <div className="text-2xl font-black relative z-10">{masteryStats.due}</div>
-                <p className="text-[10px] text-white/80 relative z-10 font-bold uppercase tracking-tight">Từ đến hạn</p>
+                <div className="absolute -top-4 -right-4 w-24 h-24 bg-white/10 blur-2xl rounded-full group-hover:scale-150 transition-transform duration-700" />
+                <Sparkles size={24} className="mb-4 text-white/50 group-hover:rotate-12 transition-transform" />
+                <div className="text-3xl font-black mb-1">{masteryStats.due}</div>
+                <p className="text-[9px] text-white/70 font-black uppercase tracking-widest leading-tight">Từ đến hạn<br/>ôn tập</p>
               </button>
 
-              <div className="bg-slate-900 border border-slate-800 rounded-[32px] p-6 flex flex-col justify-between relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform text-indigo-500">
-                  <Clock size={32} />
-                </div>
-                <div className="flex items-center justify-between mb-1 relative z-10">
+              <div className="bg-slate-900 border border-slate-800 rounded-[40px] p-7 flex flex-col justify-between relative overflow-hidden group/item shadow-xl hover:border-slate-700 transition-colors">
+                <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-1.5">
-                    <div className={cn("w-1 h-1 rounded-full", (isActive && isQuizMode) ? "bg-emerald-500 animate-pulse" : "bg-slate-700")} />
-                    <h4 className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Thời gian học</h4>
+                    <div className={cn("w-1.5 h-1.5 rounded-full", (isActive && isQuizMode) ? "bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-slate-700")} />
+                    <h4 className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Thời gian</h4>
                   </div>
                   <button 
                     onClick={() => setIsGoalSettingOpen(true)}
-                    className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-600 hover:text-indigo-400 transition-all"
-                    title="Cài đặt mục tiêu"
+                    className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-600 hover:text-indigo-500 transition-all"
                   >
                     <Filter size={12} />
                   </button>
                 </div>
-                <div className="text-2xl font-black text-white relative z-10">{formatTime(todayStudyTime)}</div>
-                <div className="flex items-center justify-between mt-2 mb-1">
-                  <span className="text-[8px] font-bold text-slate-500 uppercase tracking-tight">Mục tiêu {studyTimeGoal}p</span>
-                  <span className="text-[8px] font-bold text-indigo-400 uppercase tracking-tight">{timeGoalProgress}%</span>
-                </div>
-                <div className="h-1 w-full bg-slate-800 rounded-full overflow-hidden relative">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${timeGoalProgress}%` }}
-                    className={cn(
-                      "h-full shadow-[0_0_8px_rgba(99,102,241,0.5)] transition-colors",
-                      timeGoalProgress >= 100 ? "bg-emerald-500" : "bg-indigo-500"
-                    )}
-                  />
+                <div className="text-3xl font-black text-white mb-4 tracking-tight leading-none">{formatTime(todayStudyTime)}</div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[8px] font-bold text-slate-600 uppercase tracking-tight">Mục tiêu {studyTimeGoal}p</span>
+                    <span className="text-[8px] font-bold text-indigo-400">{timeGoalProgress}%</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800/50">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${timeGoalProgress}%` }}
+                      className={cn(
+                        "h-full transition-colors relative",
+                        timeGoalProgress >= 100 ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" : "bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"
+                      )}
+                    />
+                  </div>
                 </div>
               </div>
 
               {/* Streak Stat Card */}
-              <div className="bg-slate-900 border border-slate-800 rounded-[32px] p-6 flex flex-col justify-between relative overflow-hidden group">
+              <div className="bg-slate-900 border border-slate-800 rounded-[40px] p-7 flex flex-col justify-between relative overflow-hidden group shadow-xl hover:border-slate-700 transition-colors">
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform text-orange-500">
                   <Flame size={32} />
                 </div>
-                <div className="flex items-center gap-1.5 mb-1 relative z-10">
-                  <h4 className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Chuỗi học tập</h4>
+                <div className="flex items-center gap-1.5 mb-4 relative z-10">
+                  <h4 className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Chuỗi học tập</h4>
                 </div>
                 <div className="flex items-baseline gap-2 relative z-10">
                   <span className={cn(
-                    "text-2xl font-black transition-colors",
-                    streak.currentStreak > 0 ? "text-orange-500" : "text-white"
+                    "text-3xl font-black transition-colors leading-none",
+                    streak.currentStreak > 0 ? "text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.3)]" : "text-white"
                   )}>
                     {streak.currentStreak}
                   </span>
-                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">Ngày liên tiếp</span>
+                  <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Ngày</span>
                 </div>
-                <div className="mt-2 flex gap-1 relative z-10">
+                <div className="mt-4 flex gap-1 relative z-10">
                   {[...Array(7)].map((_, i) => (
                     <div 
                       key={i} 
                       className={cn(
-                        "flex-1 h-1 rounded-full transition-all duration-500",
-                        streak.currentStreak > i ? "bg-orange-500" : "bg-slate-800"
+                        "flex-1 h-1 rounded-full transition-all duration-700",
+                        streak.currentStreak > i ? "bg-orange-500 shadow-[0_0_5px_rgba(249,115,22,0.5)]" : "bg-slate-800"
                       )} 
                     />
                   ))}
@@ -874,7 +913,7 @@ export default function App() {
         </div>
 
         {/* Modern Filter Toolbar */}
-        <div className="bg-slate-900/50 backdrop-blur-xl border border-white/5 rounded-[24px] p-2 md:p-3 mb-8 flex flex-col lg:flex-row items-center gap-4">
+        <div className="bg-slate-900/50 backdrop-blur-xl border border-white/5 rounded-[24px] p-2 md:p-3 mb-8 flex flex-col lg:flex-row items-center gap-4 shadow-lg shadow-slate-900/20">
           <div className="relative flex-1 w-full lg:w-auto">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input 
@@ -882,7 +921,7 @@ export default function App() {
               placeholder="Tìm kiếm từ vựng..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-4 py-3 bg-slate-950 border border-slate-800/50 rounded-[18px] focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all text-sm font-medium"
+              className="w-full pl-11 pr-4 py-3 bg-slate-950 border border-slate-800/50 rounded-[18px] focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all text-sm font-medium text-slate-100"
             />
           </div>
 
@@ -920,15 +959,15 @@ export default function App() {
             </button>
           </div>
 
-          <div className="w-[1px] h-6 bg-slate-800 mx-1 shrink-0" />
+          <div className="w-px h-8 bg-slate-800 mx-2 shrink-0 hidden lg:block" />
 
             <button
               onClick={() => setShowDueOnly(!showDueOnly)}
               className={cn(
-                "px-5 py-2.5 rounded-[18px] text-xs font-bold transition-all flex items-center gap-2 shrink-0 border",
+                "px-6 py-3 rounded-2xl text-xs font-black transition-all flex items-center gap-2 shrink-0 border",
                 showDueOnly 
-                  ? "bg-amber-500 border-amber-400 text-slate-950 shadow-xl shadow-amber-500/20" 
-                  : "bg-slate-950/50 border-slate-800/50 text-slate-500 hover:text-white"
+                  ? "bg-amber-500 border-amber-400 text-slate-950 shadow-[0_20px_40px_-12px_rgba(245,158,11,0.3)]" 
+                  : "bg-slate-950 border-slate-800 text-slate-500 hover:text-white"
               )}
             >
               <Clock size={16} />
@@ -1175,8 +1214,8 @@ export default function App() {
         {/* Multi-selection info bar */}
         <div className="flex items-center justify-between mb-4 mt-8 px-2">
           <div className="flex items-center gap-3">
-             <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em]">Danh sách từ vựng</h3>
-             <span className="px-2 py-0.5 bg-slate-900 border border-slate-800 rounded text-[9px] font-bold text-slate-500">{filteredVocab.length} từ</span>
+             <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Danh sách từ vựng</h3>
+             <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded text-[9px] font-bold text-slate-400 dark:text-slate-500">{filteredVocab.length} từ</span>
           </div>
           <div className="flex items-center gap-2">
             <button 
@@ -1195,7 +1234,7 @@ export default function App() {
                   });
                 }
               }}
-              className="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-[10px] font-bold text-slate-400 hover:text-indigo-400 hover:border-indigo-500/30 transition-all flex items-center gap-2"
+              className="px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-[10px] font-bold text-slate-400 hover:text-indigo-400 hover:border-indigo-500/30 transition-all flex items-center gap-2 shadow-sm"
             >
               <Check className={cn("w-3 h-3", (filteredVocab.every(v => v.isSelected) && filteredVocab.length > 0) ? "text-indigo-400" : "")} />
               {(filteredVocab.every(v => v.isSelected) && filteredVocab.length > 0) ? "Bỏ chọn bài này" : "Chọn bài này"}
@@ -1206,8 +1245,8 @@ export default function App() {
         {/* List Content */}
         <div className={cn(
           viewMode === 'card' 
-            ? "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4" 
-            : "flex flex-col gap-2"
+            ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" 
+            : "flex flex-col gap-3"
         )}>
           <AnimatePresence mode="popLayout">
             {filteredVocab.map((item) => (
@@ -1221,34 +1260,34 @@ export default function App() {
                 className={cn(
                   "group transition-all cursor-pointer relative",
                   viewMode === 'card' 
-                    ? "bg-slate-900 border rounded-2xl p-4 md:p-5" 
-                    : "bg-slate-900/40 hover:bg-slate-900 border border-slate-800/50 rounded-xl px-4 py-3 flex items-center justify-between",
+                    ? "bg-slate-900 border rounded-[28px] p-6 shadow-xl" 
+                    : "bg-slate-900/40 hover:bg-slate-900 border border-slate-800/50 rounded-2xl px-6 py-4 flex items-center justify-between shadow-sm",
                   item.isSelected 
                     ? "border-indigo-500 bg-indigo-500/5 ring-1 ring-indigo-500/30" 
                     : item.color && viewMode === 'card'
                       ? {
-                          'border-indigo-500/50 shadow-[0_0_20px_rgba(99,102,241,0.15)] ring-1 ring-indigo-500/10': item.color === 'indigo',
-                          'border-fuchsia-500/50 shadow-[0_0_20px_rgba(217,70,239,0.15)] ring-1 ring-fuchsia-500/10': item.color === 'fuchsia',
-                          'border-emerald-500/50 shadow-[0_0_20px_rgba(16,185,129,0.15)] ring-1 ring-emerald-500/10': item.color === 'emerald',
-                          'border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/10': item.color === 'amber',
-                          'border-rose-500/50 shadow-[0_0_20px_rgba(244,63,94,0.15)] ring-1 ring-rose-500/10': item.color === 'rose',
-                          'border-cyan-500/50 shadow-[0_0_20px_rgba(6,182,212,0.15)] ring-1 ring-cyan-500/10': item.color === 'cyan',
+                          'border-indigo-400/30 shadow-[0_20px_40px_-12px_rgba(99,102,241,0.15)]': item.color === 'indigo',
+                          'border-fuchsia-400/30 shadow-[0_20px_40px_-12px_rgba(217,70,239,0.15)]': item.color === 'fuchsia',
+                          'border-emerald-400/30 shadow-[0_20px_40px_-12px_rgba(16,185,129,0.15)]': item.color === 'emerald',
+                          'border-amber-400/30 shadow-[0_20px_40px_-12px_rgba(245,158,11,0.15)]': item.color === 'amber',
+                          'border-rose-400/30 shadow-[0_20px_40px_-12px_rgba(244,63,94,0.15)]': item.color === 'rose',
+                          'border-cyan-400/30 shadow-[0_20px_40px_-12px_rgba(6,182,212,0.15)]': item.color === 'cyan',
                         }[item.color]
-                      : "border-slate-800/50 hover:border-indigo-500/30 hover:bg-slate-800/30"
+                      : "border-slate-800 hover:border-slate-700 hover:bg-slate-800/30"
                 )}
               >
                 {/* Selection Indicator & Checkbox */}
                 <div className={cn(
                   "absolute z-20 transition-all",
-                  viewMode === 'card' ? "top-4 right-4" : "left-4 top-1/2 -translate-y-1/2"
+                  viewMode === 'card' ? "top-6 right-6" : "left-6 top-1/2 -translate-y-1/2"
                 )}>
                   <div className={cn(
-                    "w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all",
+                    "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all",
                     item.isSelected 
-                      ? "bg-indigo-500 border-indigo-500 shadow-lg shadow-indigo-500/30" 
+                      ? "bg-indigo-500 border-indigo-500 shadow-[0_0_12px_rgba(99,102,241,0.5)]" 
                       : "bg-slate-950 border-slate-700 group-hover:border-slate-500"
                   )}>
-                    {item.isSelected && <Check size={12} strokeWidth={4} className="text-white" />}
+                    {item.isSelected && <Check size={14} strokeWidth={4} className="text-white" />}
                   </div>
                 </div>
 
@@ -1284,9 +1323,9 @@ export default function App() {
             )}
             {item.color && (
               <span className={cn(
-                "px-2 py-0.5 border text-[9px] font-bold uppercase tracking-widest rounded whitespace-nowrap bg-slate-900/50",
-                PREDEFINED_COLORS.find(c => c.value === item.color)?.text || 'text-slate-500 border-slate-800',
-                PREDEFINED_COLORS.find(c => c.value === item.color)?.class.replace('bg-', 'border-').replace(' ', '') || 'border-slate-800'
+                "px-2 py-0.5 border text-[9px] font-bold uppercase tracking-widest rounded whitespace-nowrap bg-white/50 dark:bg-slate-900/50",
+                PREDEFINED_COLORS.find(c => c.value === item.color)?.text || 'text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-800',
+                PREDEFINED_COLORS.find(c => c.value === item.color)?.class.replace('bg-', 'border-').replace(' ', '') || 'border-slate-200 dark:border-slate-800'
               )}>
                 {PREDEFINED_COLORS.find(c => c.value === item.color)?.label}
               </span>
@@ -1328,13 +1367,13 @@ export default function App() {
                             {item.wordType}
                           </span>
                         )}
-                        <h3 className="text-2xl md:text-3xl font-black font-display-zh text-slate-100 tracking-tight">{item.word}</h3>
+                        <h3 className="text-2xl md:text-3xl font-black font-display-zh text-white tracking-tight">{item.word}</h3>
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
                             speakChinese(item.word);
                           }}
-                          className="p-1 rounded-full bg-slate-800 text-slate-400 hover:text-indigo-400 hover:bg-slate-700 transition-all"
+                          className="p-1 rounded-full bg-slate-800 text-slate-400 hover:text-indigo-400 hover:bg-slate-700 transition-all border border-transparent"
                           title="Listen"
                         >
                           <Volume2 size={12} />
@@ -1347,7 +1386,7 @@ export default function App() {
                             setPracticeMode('flashcards');
                             setIsQuizMode(true);
                           }}
-                          className="p-1 rounded-full bg-slate-800 text-slate-400 hover:text-fuchsia-400 hover:bg-slate-700 transition-all"
+                          className="p-1 rounded-full bg-slate-800 text-slate-400 hover:text-fuchsia-400 hover:bg-slate-700 transition-all border border-transparent"
                           title="Học với flashcard"
                         >
                           <BookOpen size={12} />
@@ -1356,7 +1395,7 @@ export default function App() {
                       <p className="text-[10px] md:text-xs text-slate-500 font-mono tracking-wider tabular-nums uppercase mt-0.5">{item.pinyin}</p>
                     </div>
 
-                    <p className="text-xs md:text-sm text-slate-400 font-medium mb-4 line-clamp-2 min-h-[32px]">
+                    <p className="text-xs md:text-sm text-slate-300 font-medium mb-4 line-clamp-2 min-h-[32px]">
                       {item.meaning}
                     </p>
 
@@ -1562,7 +1601,7 @@ export default function App() {
       {/* Goal Setting Modal */}
       <AnimatePresence>
         {isGoalSettingOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-md">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1691,190 +1730,126 @@ export default function App() {
       </AnimatePresence>
       <AnimatePresence>
         {isAdding && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-xl">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsAdding(false)}
-              className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+              className="absolute inset-0 bg-slate-950/80"
             />
               <motion.div 
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                initial={{ opacity: 0, scale: 0.95, y: 30 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-[32px] p-8 shadow-2xl overflow-y-auto max-h-[90vh]"
+                exit={{ opacity: 0, scale: 0.95, y: 30 }}
+                className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-[48px] p-8 md:p-12 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)] overflow-y-auto max-h-[90vh] custom-scrollbar"
               >
-              <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center justify-between mb-10">
                 <div>
-                  <h3 className="text-xl font-bold text-slate-100 font-zh">新增詞彙</h3>
-                  <p className="text-xs text-slate-500 uppercase tracking-widest mt-1">Add word to library</p>
+                  <h3 className="text-3xl font-black text-white tracking-tighter font-zh mb-1">新增詞彙</h3>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.3em]">Add word to library</p>
                 </div>
-                <button onClick={() => setIsAdding(false)} className="p-2 hover:bg-slate-800 rounded-full text-slate-500 transition-colors">
+                <button onClick={() => setIsAdding(false)} className="w-10 h-10 flex items-center justify-center bg-slate-800/50 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-all">
                   <X size={20} />
                 </button>
               </div>
 
-              <form onSubmit={handleAddSubmit} className="space-y-5">
+              <form onSubmit={handleAddSubmit} className="space-y-6">
                 {errorMessage && (
-                  <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3">
-                    <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={16} />
-                    <p className="text-xs text-red-400 font-medium">{errorMessage}</p>
+                  <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start gap-3">
+                    <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={18} />
+                    <p className="text-xs text-red-400 font-bold">{errorMessage}</p>
                   </div>
                 )}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-1">
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Word (Hanzi)</label>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Hán tự</label>
                     <input 
                       autoFocus
                       required
                       type="text"
                       value={newWord}
                       onChange={(e) => setNewWord(e.target.value)}
-                      className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm font-zh"
+                      className="w-full px-5 py-4 bg-slate-950 border border-slate-800 rounded-2xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 focus:outline-none transition-all text-xl font-zh text-white placeholder:text-slate-700"
                       placeholder="學習"
                     />
                   </div>
-                  <div className="col-span-1">
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Pinyin</label>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Pinyin</label>
                     <input 
                       type="text"
                       value={newPinyin}
                       onChange={(e) => setNewPinyin(e.target.value)}
-                      className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm"
+                      className="w-full px-5 py-4 bg-slate-950 border border-slate-800 rounded-2xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 focus:outline-none transition-all text-lg font-mono text-white placeholder:text-slate-700"
                       placeholder="xué xí"
                     />
                   </div>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Meaning / Notes</label>
+
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Ý nghĩa / Giải thích</label>
                   <input 
                     required
                     type="text"
                     value={newMeaning}
                     onChange={(e) => setNewMeaning(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm"
+                    className="w-full px-5 py-4 bg-slate-950 border border-slate-800 rounded-2xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 focus:outline-none transition-all text-base text-white placeholder:text-slate-700"
                     placeholder="To study; learning"
                   />
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-indigo-400 mb-2">Word Type (e.g. N, V, Adj, Phrase...)</label>
-                  <input 
-                    type="text"
-                    value={newWordType}
-                    onChange={(e) => setNewWordType(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm text-indigo-400 font-bold"
-                    placeholder="VD: N, V, Adj, Adv..."
-                  />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">Loại từ</label>
+                    <input 
+                      type="text"
+                      value={newWordType}
+                      onChange={(e) => setNewWordType(e.target.value)}
+                      className="w-full px-5 py-3 bg-slate-950 border border-slate-800 rounded-2xl focus:border-indigo-500 focus:outline-none transition-all text-sm text-indigo-400 font-black placeholder:text-indigo-400/20"
+                      placeholder="e.g. N, V, Adj"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Cấp độ (Contemporary)</label>
+                    <select
+                      value={newLevel}
+                      onChange={(e) => setNewLevel(e.target.value as ProficiencyLevel)}
+                      className="w-full px-5 py-3 bg-slate-950 border border-slate-800 rounded-2xl focus:border-indigo-500 focus:outline-none transition-all text-sm text-white"
+                    >
+                      {['當代1', '當代2', '當代3', '當代4', '當代5', '當代6'].map(v => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Example Sentence (Optional)</label>
+
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Câu ví dụ</label>
                   <textarea 
                     value={newExample}
                     onChange={(e) => setNewExample(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm min-h-[80px] font-zh"
-                    placeholder="VD: 我 rất thích học Hán ngữ."
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Ghi chú & Mẹo nhớ (Mnemonics)</label>
-                  <textarea 
-                    value={newNotes}
-                    onChange={(e) => setNewNotes(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm min-h-[80px] text-indigo-300"
-                    placeholder="VD: Chữ 'Học' có bộ 'Tử' là đứa trẻ đang ngồi học dưới mái nhà..."
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Phân loại (Category)</label>
-                    <input 
-                      type="text"
-                      list="category-suggestions"
-                      value={newCategory}
-                      onChange={(e) => setNewCategory(e.target.value)}
-                      className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-sm"
-                      placeholder="e.g. Travel, Life"
-                    />
-                    <datalist id="category-suggestions">
-                      {allCategories.map(cat => <option key={cat} value={cat} />)}
-                    </datalist>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-emerald-500 mb-2 font-black">Bài học (Lesson/Chapter)</label>
-                    <input 
-                      type="text"
-                      value={newLesson}
-                      onChange={(e) => setNewLesson(e.target.value)}
-                      className="w-full px-4 py-3 bg-slate-950 border border-emerald-900/30 rounded-xl focus:border-emerald-500 focus:outline-none transition-all text-sm text-emerald-400 font-bold"
-                      placeholder="e.g. Bài 1, Lesson 2"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Contemporary Chinese Level</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['當代1', '當代2', '當代3', '當代4', '當代5', '當代6'] as ProficiencyLevel[]).map((level) => (
-                      <button
-                        key={level}
-                        type="button"
-                        onClick={() => setNewLevel(level)}
-                        className={cn(
-                          "py-2.5 rounded-lg text-xs font-bold transition-all border",
-                          newLevel === level 
-                            ? "bg-indigo-600 border-indigo-500 text-white" 
-                            : "bg-slate-950 border-slate-800 text-slate-500 hover:border-indigo-500/50"
-                        )}
-                      >
-                        {level}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {/* Secondary metadata moved to the bottom */}
-                <div className="pt-4 mt-4 border-t border-slate-800/50">
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Thêm nhãn (Tags)</label>
-                  <input 
-                    type="text"
-                    placeholder="e.g. food, travel, work (cách nhau bằng dấu phẩy)"
-                    value={newTags}
-                    onChange={(e) => setNewTags(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl focus:border-indigo-500 focus:outline-none transition-all text-xs text-slate-400"
+                    className="w-full px-5 py-4 bg-slate-950 border border-slate-800 rounded-2xl focus:border-indigo-500 focus:outline-none transition-all text-sm min-h-[100px] font-zh text-white placeholder:text-slate-700 resize-none"
+                    placeholder="Nhập câu mẫu để hiểu ngữ cảnh..."
                   />
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">Nhãn trạng thái (Mood Label)</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {PREDEFINED_COLORS.map((color) => (
-                      <button
-                        key={color.label}
-                        type="button"
-                        onClick={() => setNewColor(color.value)}
-                        className={cn(
-                          "flex flex-col items-center gap-1.5 p-2 rounded-xl border transition-all",
-                          newColor === color.value ? "bg-slate-800 border-indigo-500/50 shadow-inner" : "bg-slate-950 border-slate-800/20 hover:border-slate-800"
-                        )}
-                      >
-                        <div className={cn(
-                          "w-5 h-5 rounded-full shadow-lg",
-                          color.class
-                        )} />
-                        <span className={cn(
-                          "text-[8px] font-bold uppercase tracking-tighter whitespace-nowrap",
-                          newColor === color.value ? "text-slate-100" : "text-slate-600"
-                        )}>{color.label}</span>
-                      </button>
-                    ))}
-                  </div>
+                <div className="flex gap-4 pt-4">
+                  <button 
+                    type="submit"
+                    className="flex-1 py-5 bg-white text-slate-950 rounded-3xl font-black text-lg hover:scale-[1.02] active:scale-95 transition-all shadow-[0_20px_40px_-12px_rgba(255,255,255,0.2)] flex items-center justify-center gap-3"
+                  >
+                    <Plus size={20} strokeWidth={3} />
+                    Xác nhận
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setIsAdding(false)}
+                    className="px-8 py-5 bg-slate-800 border border-slate-700 text-white rounded-3xl font-black text-sm hover:bg-slate-700 transition-all uppercase tracking-widest"
+                  >
+                    Hủy
+                  </button>
                 </div>
-
-                <button 
-                  type="submit"
-                  className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-xl shadow-indigo-600/20 hover:bg-indigo-500 hover:-translate-y-0.5 transition-all mt-4"
-                >
-                  Save to Library
-                </button>
               </form>
             </motion.div>
           </div>
@@ -1884,7 +1859,7 @@ export default function App() {
       {/* Bulk Import Modal */}
       <AnimatePresence>
         {isBulkImporting && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1923,7 +1898,7 @@ export default function App() {
                   <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Dữ liệu từ vựng</label>
                   
                   <div className="flex gap-4 mb-4">
-                    <div className="flex-1 p-4 bg-slate-950 border border-slate-800 rounded-2xl border-dashed flex flex-col items-center justify-center gap-3 group hover:border-indigo-500/50 transition-all">
+                    <div className="flex-1 p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl border-dashed flex flex-col items-center justify-center gap-3 group hover:border-indigo-500/50 transition-all">
                       <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
                         <FileSpreadsheet size={24} />
                       </div>
@@ -1946,15 +1921,15 @@ export default function App() {
                       </button>
                     </div>
 
-                    <div className="flex-1 flex flex-col justify-center p-4 bg-slate-950 border border-slate-800 rounded-2xl">
+                    <div className="flex-1 flex flex-col justify-center p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl">
                       <h4 className="text-[10px] font-bold text-indigo-400 uppercase mb-2">Hướng dẫn Excel</h4>
                       <ul className="text-[9px] text-slate-500 space-y-1 ml-3 list-disc">
                         <li>Cột 1: Chữ Hán (Word / Hanzi / Từ)</li>
                         <li>Cột 2: Phiên âm (Pinyin / Đọc)</li>
                         <li>Cột 3: Ý nghĩa (Meaning / Nghĩa)</li>
-                        <li className="text-emerald-400 font-bold">Cột 4: Từ Loại (Word Type / POS)</li>
-                        <li className="text-indigo-400 font-bold">Cột 5: Cấp độ (1, 2, 3, 4, 5, 6) - BẮT BUỘC</li>
-                        <li className="text-emerald-400 font-bold">Cột 6: Bài (Lesson / Unit) - KHUYÊN DÙNG</li>
+                        <li className="text-emerald-600 dark:text-emerald-400 font-bold">Cột 4: Từ Loại (Word Type / POS)</li>
+                        <li className="text-indigo-600 dark:text-indigo-400 font-bold">Cột 5: Cấp độ (1, 2, 3, 4, 5, 6) - BẮT BUỘC</li>
+                        <li className="text-emerald-600 dark:text-emerald-400 font-bold">Cột 6: Bài (Lesson / Unit) - KHUYÊN DÙNG</li>
                         <li>Cột 7: Ví dụ (Example)</li>
                       </ul>
                     </div>
@@ -1970,7 +1945,7 @@ export default function App() {
 挑战 - tiǎo zhàn - thách thức"
                       value={bulkText}
                       onChange={(e) => setBulkText(e.target.value)}
-                      className="w-full h-40 bg-slate-950 border border-slate-800 rounded-2xl p-4 pl-12 text-slate-200 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none font-zh text-sm"
+                      className="w-full h-40 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 pl-12 text-slate-900 dark:text-slate-200 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none font-zh text-sm"
                     />
                   </div>
                   <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-500">
@@ -2092,7 +2067,7 @@ export default function App() {
       {/* Delete Confirmation Modal */}
       <AnimatePresence>
         {vocabToDelete && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 dark:bg-slate-950/80 backdrop-blur-md">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -2102,15 +2077,15 @@ export default function App() {
               <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center text-red-500 mx-auto mb-6">
                 <Trash2 size={32} />
               </div>
-              <h3 className="text-xl font-bold text-slate-100 mb-2">Xác nhận xóa?</h3>
-              <p className="text-slate-400 text-sm mb-8">
-                Bạn có chắc chắn muốn xóa từ <span className="text-red-400 font-bold font-display-zh">{vocabToDelete.word}</span> không? Hành động này không thể hoàn tác.
+              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">Xác nhận xóa?</h3>
+              <p className="text-slate-600 dark:text-slate-400 text-sm mb-8">
+                Bạn có chắc chắn muốn xóa từ <span className="text-red-600 dark:text-red-400 font-bold font-display-zh">{vocabToDelete.word}</span> không? Hành động này không thể hoàn tác.
               </p>
               
               <div className="flex gap-3">
                 <button 
                   onClick={() => setVocabToDelete(null)}
-                  className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold transition-all"
+                  className="flex-1 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl font-bold transition-all"
                 >
                   Hủy
                 </button>

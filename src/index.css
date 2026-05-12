@@ -9,8 +9,7 @@
 }
 
 body {
-  background-color: #020617; /* slate-950 */
-  color: #f8fafc; /* slate-50 */
+  @apply bg-slate-950 text-slate-50;
 }
 
 @utility perspective-1000 {
@@ -19,10 +18,12 @@ body {
 
 @utility preserve-3d {
   transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
 }
 
 @utility backface-hidden {
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 @utility rotate-y-180 {
