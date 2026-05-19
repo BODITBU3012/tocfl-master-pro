@@ -26,30 +26,45 @@ export function ReadingPractice({ passage, onClose }: Props) {
 
   // Helper to normalize strings for comparison
   const normalizeString = (str: string) => {
+    if (!str) return '';
     return str
-      .replace(/。/g, '.')
-      .replace(/，/g, ',')
-      .replace(/！/g, '!')
-      .replace(/？/g, '?')
-      .replace(/：/g, ':')
-      .replace(/；/g, ';')
-      .replace(/（/g, '(')
-      .replace(/）/g, ')')
-      .replace(/「/g, '"')
-      .replace(/」/g, '"')
-      .replace(/『/g, '"')
-      .replace(/』/g, '"')
-      .replace(/、/g, ',')
+      .normalize('NFC')
+      .replace(/[\u00A0\u1680\u180e\u2000-\u200a\u202f\u205f\u3000\ufeff]/g, ' ') // Normalize various space characters
+      .replace(/[。．.]/g, '.')
+      .replace(/[，,、]/g, ',')
+      .replace(/[！!]/g, '!')
+      .replace(/[？?]/g, '?')
+      .replace(/[：:]/g, ':')
+      .replace(/[；;]/g, ';')
+      .replace(/[（(]/g, '(')
+      .replace(/[）)]/g, ')')
+      .replace(/[「」『』""＂＂'']/g, '"')
+      .replace(/[—–-]/g, '-')
       .replace(/\s+/g, ' ')
-      .trim();
+      .trim()
+      .toLowerCase();
+  };
+
+  const stripPunctuation = (str: string) => {
+    if (!str) return '';
+    return str
+      .normalize('NFC')
+      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()。，！？；：「」『』、]/g, "")
+      .replace(/\s+/g, "")
+      .toLowerCase();
   };
 
   const normalizeChar = (char: string) => {
+    if (!char) return '';
+    const normalized = char.normalize('NFC');
     const map: Record<string, string> = {
-      '。': '.', '，': ',', '！': '!', '？': '?', '：': ':', '；': ';',
-      '（': '(', '）': ')', '「': '"', '」': '"', '『': '"', '』': '"', '、': ','
+      '。': '.', '．': '.',
+      '，': ',', '、': ',',
+      '！': '!', '？': '?', '：': ':', '；': ';',
+      '（': '(', '）': ')', 
+      '「': '"', '」': '"', '『': '"', '』': '"', '＂': '"'
     };
-    return map[char] || char;
+    return (map[normalized] || normalized).toLowerCase();
   };
 
   // Initialize modes
@@ -79,8 +94,12 @@ export function ReadingPractice({ passage, onClose }: Props) {
     const currentLineNormalized = normalizeString(currentLineRaw);
     const inputNormalized = normalizeString(userInput);
 
-    // Also allow exact match for strictness
-    if (userInput.trim() === currentLineRaw.trim() || inputNormalized === currentLineNormalized) {
+    // Flexible comparison logic
+    const isExactMatch = userInput.trim() === currentLineRaw.trim();
+    const isNormalizedMatch = inputNormalized === currentLineNormalized;
+    const isPunctuationAgnosticMatch = stripPunctuation(userInput) === stripPunctuation(currentLineRaw);
+
+    if (isExactMatch || isNormalizedMatch || isPunctuationAgnosticMatch) {
       if (currentLineIndex === passage.lines.length - 1) {
         setIsFinished(true);
       } else {
