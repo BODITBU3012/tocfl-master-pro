@@ -10,6 +10,10 @@ import AudioManager from './components/Audio/AudioManager';
 import SrsStats from './components/Stats/SrsStats';
 import { cn, getLevelColor } from './lib/utils';
 import { speakChinese } from './lib/tts';
+import { ReadingPassageManager } from './components/Reading/ReadingPassageManager';
+import { ReadingPractice } from './components/Reading/ReadingPractice';
+import { useReadingPassages } from './hooks/useReadingPassages';
+import { ReadingPassage } from './types';
 
 export default function App() {
   const { vocabulary, addVocab, addBulkVocab, removeVocab, toggleSelect, selectAll, clearSelection, updateVocab, recordResult } = useVocabulary();
@@ -20,6 +24,27 @@ export default function App() {
   const dueVocabCount = vocabulary.filter(v => !v.nextReviewAt || v.nextReviewAt <= Date.now()).length;
 
   const isDarkMode = true;
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedLevel, setSelectedLevel] = useState<ProficiencyLevel | 'All'>('All');
+  const [selectedLesson, setSelectedLesson] = useState<string | 'All'>('All');
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [selectedWordType, setSelectedWordType] = useState<string>('All');
+  const [selectedColor, setSelectedColor] = useState<string | 'All'>('All');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
+  const { passages, isLoaded: isPassagesLoaded } = useReadingPassages();
+  
+  const filteredPassages = passages.filter(p => selectedLevel === 'All' || p.level === selectedLevel);
+
+  const [activeTab, setActiveTab] = useState<'vocabulary' | 'passages'>('vocabulary');
+  
+  // Switch back to vocabulary if a level has no passages and we are on passages tab
+  useEffect(() => {
+    if (activeTab === 'passages' && filteredPassages.length === 0 && selectedLevel !== 'All') {
+      setActiveTab('vocabulary');
+    }
+  }, [selectedLevel, filteredPassages.length, activeTab]);
 
   const [expandedVocabId, setExpandedVocabId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -33,14 +58,7 @@ export default function App() {
   const [practiceMode, setPracticeMode] = useState<PracticeMode>('standard');
   const [preferredTypes, setPreferredTypes] = useState<QuestionType[]>(ALL_QUESTION_TYPES);
   const [isSelectingMode, setIsSelectingMode] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedLevel, setSelectedLevel] = useState<ProficiencyLevel | 'All'>('All');
-  const [selectedLesson, setSelectedLesson] = useState<string | 'All'>('All');
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [selectedWordType, setSelectedWordType] = useState<string>('All');
-  const [selectedColor, setSelectedColor] = useState<string | 'All'>('All');
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-
+  
   // Automatically reset lesson filter when level changes
   useEffect(() => {
     setSelectedLesson('All');
@@ -53,6 +71,8 @@ export default function App() {
   const [vocabToDelete, setVocabToDelete] = useState<VocabularyItem | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedVocab, setSelectedVocab] = useState<VocabularyItem | null>(null);
+  const [isReadingManagerOpen, setIsReadingManagerOpen] = useState(false);
+  const [currentReadingPassage, setCurrentReadingPassage] = useState<ReadingPassage | null>(null);
   
   const [showScrollTop, setShowScrollTop] = useState(false);
   const excelInputRef = useRef<HTMLInputElement>(null);
@@ -560,6 +580,24 @@ export default function App() {
         </div>
       </nav>
 
+      {/* Reading Passage Modals */}
+      {isReadingManagerOpen && (
+        <ReadingPassageManager 
+          onPractice={(passage) => {
+            setIsReadingManagerOpen(false);
+            setCurrentReadingPassage(passage);
+          }}
+          onClose={() => setIsReadingManagerOpen(false)}
+        />
+      )}
+
+      {currentReadingPassage && (
+        <ReadingPractice 
+          passage={currentReadingPassage}
+          onClose={() => setCurrentReadingPassage(null)}
+        />
+      )}
+
       {/* Main Content Padding for Fixed Nav */}
       <div className="pt-24 md:pt-32" />
 
@@ -714,6 +752,13 @@ export default function App() {
                   >
                     <Volume2 size={20} />
                   </button>
+                  <button 
+                    onClick={() => setIsReadingManagerOpen(true)}
+                    className="p-3 bg-indigo-500/20 hover:bg-indigo-500/30 rounded-xl transition-all border border-white/10"
+                    title="Quản lý bài khóa"
+                  >
+                    <BookOpen size={20} />
+                  </button>
                 </div>
               </div>
             </div>
@@ -775,23 +820,31 @@ export default function App() {
             </div>
             
             <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto no-scrollbar pb-1">
-              {['All', '當代1', '當代2', '當代3', '當代4', '當代5', '當代6'].map((level) => (
-                <button
-                  key={level}
-                  onClick={() => {
-                    setSelectedLevel(level as any);
-                    setSelectedLesson('All');
-                  }}
-                  className={cn(
-                    "px-4 py-2 rounded-lg text-xs font-bold transition-all border whitespace-nowrap",
-                    selectedLevel === level 
-                      ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20" 
-                      : "bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300"
-                  )}
-                >
-                  {level}
-                </button>
-              ))}
+              {['All', '當代1', '當代2', '當代3', '當代4', '當代5', '當代6'].map((level) => {
+                const passageCount = passages.filter(p => level === 'All' || p.level === level).length;
+                return (
+                  <button
+                    key={level}
+                    onClick={() => {
+                      setSelectedLevel(level as any);
+                      setSelectedLesson('All');
+                    }}
+                    className={cn(
+                      "group relative px-4 py-2 rounded-lg text-xs font-bold transition-all border whitespace-nowrap",
+                      selectedLevel === level 
+                        ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20" 
+                        : "bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300"
+                    )}
+                  >
+                    <span>{level}</span>
+                    {passageCount > 0 && selectedLevel !== level && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-indigo-500 text-white text-[8px] flex items-center justify-center rounded-full shadow-lg border border-slate-900 group-hover:scale-110 transition-transform">
+                        {passageCount}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
@@ -1044,77 +1097,117 @@ export default function App() {
         </AnimatePresence>
 
       {/* Content Toolbar / Stats Summary */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-8">
-        <div className="flex items-center gap-4 group">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-8">
+        <div className="flex items-center gap-6 group">
           <div className="w-1.5 h-12 bg-brand-500 rounded-full group-hover:h-14 transition-all" />
           <div>
-            <h2 className="text-2xl font-black text-white tracking-tighter uppercase font-zh">資料庫 <span className="text-slate-600">/ Library</span></h2>
+            <div className="flex items-center gap-4">
+              <h2 className="text-2xl font-black text-white tracking-tighter uppercase font-zh">資料庫 <span className="text-slate-600">/ Library</span></h2>
+              <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1">
+                <button 
+                  onClick={() => setActiveTab('vocabulary')}
+                  className={cn(
+                    "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                    activeTab === 'vocabulary' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-500 hover:text-slate-300"
+                  )}
+                >
+                  Từ vựng ({filteredVocab.length})
+                </button>
+                {filteredPassages.length > 0 && (
+                  <button 
+                    onClick={() => setActiveTab('passages')}
+                    className={cn(
+                      "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
+                      activeTab === 'passages' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-500 hover:text-slate-300"
+                    )}
+                  >
+                    Bài khóa ({filteredPassages.length})
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" />
+                  </button>
+                )}
+              </div>
+            </div>
             <div className="flex items-center gap-2 mt-1">
-               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{filteredVocab.length} UNITS DETECTED</span>
-               <div className="w-1 h-1 bg-slate-800 rounded-full" />
-               <span className="text-[10px] font-black text-brand-400 uppercase tracking-widest">{selectedVocabCount} SELECTED</span>
+               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{activeTab === 'vocabulary' ? `${filteredVocab.length} UNITS DETECTED` : `${filteredPassages.length} PASSAGES DETECTED`}</span>
+               {activeTab === 'vocabulary' && (
+                 <>
+                   <div className="w-1 h-1 bg-slate-800 rounded-full" />
+                   <span className="text-[10px] font-black text-brand-400 uppercase tracking-widest">{selectedVocabCount} SELECTED</span>
+                 </>
+               )}
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 glass-morphism rounded-3xl p-1.5 border border-white/10">
-           <button 
-             onClick={() => {
-                const allVisibleSelected = filteredVocab.every(v => v.isSelected);
-                if (allVisibleSelected) {
-                  filteredVocab.forEach(v => { if (v.isSelected) toggleSelect(v.id); });
-                } else {
-                  filteredVocab.forEach(v => { if (!v.isSelected) toggleSelect(v.id); });
-                }
-             }}
-             className="px-4 py-2 hover:bg-white/5 rounded-2xl text-[10px] font-black text-slate-400 hover:text-white transition-all uppercase tracking-widest"
-           >
-              {filteredVocab.every(v => v.isSelected) ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
-           </button>
-           <div className="w-px h-4 bg-white/10 mx-1" />
-           <div className="flex items-center gap-1 bg-slate-950/80 rounded-2xl p-1">
-              <button 
-                onClick={() => setViewMode('card')}
-                className={cn("p-2 rounded-xl transition-all", viewMode === 'card' ? "bg-white text-slate-950 shadow-xl" : "text-slate-500 hover:text-white")}
-              >
-                <LayoutGrid size={16} />
-              </button>
-              <button 
-                onClick={() => setViewMode('compact')}
-                className={cn("p-2 rounded-xl transition-all", viewMode === 'compact' ? "bg-white text-slate-950 shadow-xl" : "text-slate-500 hover:text-white")}
-              >
-                <List size={16} />
-              </button>
-           </div>
-        </div>
+        {activeTab === 'vocabulary' ? (
+          <div className="flex items-center gap-2 glass-morphism rounded-3xl p-1.5 border border-white/10">
+            <button 
+              onClick={() => {
+                  const allVisibleSelected = filteredVocab.every(v => v.isSelected);
+                  if (allVisibleSelected) {
+                    filteredVocab.forEach(v => { if (v.isSelected) toggleSelect(v.id); });
+                  } else {
+                    filteredVocab.forEach(v => { if (!v.isSelected) toggleSelect(v.id); });
+                  }
+              }}
+              className="px-4 py-2 hover:bg-white/5 rounded-2xl text-[10px] font-black text-slate-400 hover:text-white transition-all uppercase tracking-widest"
+            >
+                {filteredVocab.every(v => v.isSelected) ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+            </button>
+            <div className="w-px h-4 bg-white/10 mx-1" />
+            <div className="flex items-center gap-1 bg-slate-950/80 rounded-2xl p-1">
+                <button 
+                  onClick={() => setViewMode('card')}
+                  className={cn("p-2 rounded-xl transition-all", viewMode === 'card' ? "bg-white text-slate-950 shadow-xl" : "text-slate-500 hover:text-white")}
+                >
+                  <LayoutGrid size={16} />
+                </button>
+                <button 
+                  onClick={() => setViewMode('compact')}
+                  className={cn("p-2 rounded-xl transition-all", viewMode === 'compact' ? "bg-white text-slate-950 shadow-xl" : "text-slate-500 hover:text-white")}
+                >
+                  <List size={16} />
+                </button>
+            </div>
+          </div>
+        ) : (
+          <button 
+            onClick={() => setIsReadingManagerOpen(true)}
+            className="flex items-center gap-2 px-6 py-2.5 bg-slate-900 border border-slate-800 text-slate-300 text-xs font-black rounded-xl hover:bg-slate-800 transition-all uppercase tracking-widest"
+          >
+            <Plus size={16} /> Quản lý bài khóa
+          </button>
+        )}
       </div>
 
       {/* List Content */}
       <div className={cn(
-        viewMode === 'card' 
+        activeTab === 'vocabulary' && (viewMode === 'card' 
           ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" 
-          : "flex flex-col gap-4"
+          : "flex flex-col gap-4"),
+        activeTab === 'passages' && "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
       )}>
         <AnimatePresence mode="popLayout">
-          {filteredVocab.map((item, index) => (
-            <motion.div
-              layout
-              key={item.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ delay: Math.min(index * 0.02, 0.4) }}
-              onClick={() => toggleSelect(item.id)}
-              className={cn(
-                "group relative transition-all cursor-pointer overflow-hidden border",
-                viewMode === 'card' 
-                  ? "bg-slate-900 border-white/5 rounded-[40px] p-8 shadow-2xl flex flex-col h-full" 
-                  : "bg-slate-900/40 border-white/5 rounded-3xl p-6 flex items-center justify-between backdrop-blur-sm",
-                item.isSelected 
-                  ? "border-brand-500/50 bg-brand-500/5 shadow-[0_0_40px_rgba(139,92,246,0.15)]" 
-                  : "hover:border-brand-500/20 hover:bg-slate-800/40"
-              )}
-            >
+          {activeTab === 'vocabulary' ? 
+            filteredVocab.map((item, index) => (
+              <motion.div
+                layout
+                key={item.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ delay: Math.min(index * 0.02, 0.4) }}
+                onClick={() => toggleSelect(item.id)}
+                className={cn(
+                  "group relative transition-all cursor-pointer overflow-hidden border",
+                  viewMode === 'card' 
+                    ? "bg-slate-900 border-white/5 rounded-[40px] p-8 shadow-2xl flex flex-col h-full" 
+                    : "bg-slate-900/40 border-white/5 rounded-3xl p-6 flex items-center justify-between backdrop-blur-sm",
+                  item.isSelected 
+                    ? "border-brand-500/50 bg-brand-500/5 shadow-[0_0_40px_rgba(139,92,246,0.15)]" 
+                    : "hover:border-brand-500/20 hover:bg-slate-800/40"
+                )}
+              >
               {/* Card Aura Background */}
               {viewMode === 'card' && (
                 <div className={cn(
@@ -1286,7 +1379,56 @@ export default function App() {
                 </>
               )}
             </motion.div>
-          ))}
+          )) : 
+            filteredPassages.map((passage, index) => (
+              <motion.div
+                key={passage.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ delay: Math.min(index * 0.05, 0.4) }}
+                className="p-8 bg-slate-900 border border-white/5 rounded-[40px] shadow-2xl flex flex-col group relative overflow-hidden"
+              >
+                {/* Decoration */}
+                <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2" />
+                
+                <div className="flex items-center justify-between mb-6">
+                  <span className={cn(
+                    "px-3 py-1 rounded-full text-[10px] font-bold border",
+                    getLevelColor(passage.level)
+                  )}>
+                    {passage.level}
+                  </span>
+                  <div className="p-2 bg-indigo-500/10 rounded-xl text-indigo-400">
+                    <BookOpen size={16} />
+                  </div>
+                </div>
+
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-slate-100 mb-2 font-zh line-clamp-2">{passage.title}</h3>
+                  <p className="text-xs text-slate-500 mb-6">{passage.lines.length} câu thoại trong bài này</p>
+                  
+                  <div className="space-y-2 opacity-40 group-hover:opacity-60 transition-opacity">
+                    {passage.lines.slice(0, 2).map((line, i) => (
+                      <p key={i} className="text-sm font-zh text-slate-400 truncate">
+                        {line.text}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-8 pt-6 border-t border-slate-800">
+                  <button 
+                    onClick={() => setCurrentReadingPassage(passage)}
+                    className="w-full flex items-center justify-center gap-2 py-4 bg-indigo-600 text-white text-sm rounded-2xl font-bold hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/20"
+                  >
+                    Bắt đầu học
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
+              </motion.div>
+            ))
+          }
         </AnimatePresence>
       </div>
     </main>

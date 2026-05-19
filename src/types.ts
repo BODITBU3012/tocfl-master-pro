@@ -35,7 +35,23 @@ export interface AudioLesson {
   createdAt: number;
 }
 
-export type PracticeMode = 'standard' | 'timed' | 'mistake-review' | 'flashcards' | 'typing' | 'srs' | 'tone-master' | 'ear-training';
+export interface PassageLine {
+  text: string;
+  pinyin?: string;
+  translation?: string;
+}
+
+export interface ReadingPassage {
+  id: string;
+  title: string;
+  lines: PassageLine[];
+  level: ProficiencyLevel;
+  lesson?: string;
+  createdAt: number;
+  tags: string[];
+}
+
+export type PracticeMode = 'standard' | 'timed' | 'mistake-review' | 'flashcards' | 'typing' | 'srs' | 'tone-master' | 'ear-training' | 'reading-practice';
 
 export type QuestionType = 'multiple-choice' | 'fill-in-the-blank' | 'flashcard' | 'typing' | 'tone-selection' | 'audio-to-meaning' | 'hanzi-to-pinyin' | 'matching' | 'sentence-completion';
 
